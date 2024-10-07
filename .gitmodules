@@ -1,0 +1,12 @@
+[submodule "cimloop"]
+	path = cimloop
+	url = https://github.com/doctryucsd/cimloop.git
+[submodule "DNN_NeuroSim_V1.4"]
+	path = DNN_NeuroSim_V1.4
+	url = https://github.com/doctryucsd/DNN_NeuroSim_V1.4.git
+[submodule "pytorx"]
+	path = pytorx
+	url = https://github.com/doctryucsd/pytorx.git
+[submodule "timeloop-accelergy-exercises"]
+	path = timeloop-accelergy-exercises
+	url = https://github.com/doctryucsd/timeloop-accelergy-exercises.git
