@@ -1,0 +1,11 @@
+data/
+__pycache__/
+dataset/*
+outputs
+.vscode
+models/*
+*pyc
+layer_record*/
+build/
+# *.png
+run.sh
