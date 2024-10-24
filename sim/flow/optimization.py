@@ -285,27 +285,31 @@ def optimization(args: DictConfig) -> None:
     # BO loop
     num_epochs: int = args["optimization"]["num_epochs"]
     for iter in tqdm(range(num_epochs)):
+        # FIXME, TODO: collect params
+        
         param, idx = cli.get_next_trial()
 
-        eval = evaluator.evaluate(param, logger)
+        evals = evaluator.evaluate(param, logger)
         cli.complete_trial(idx, raw_data=eval)  # type: ignore
 
+
         # collect metrics
-        accuracy, energy, timing, area = (
-            eval["accuracy"][0],
-            eval["power"][0],
-            eval["performance"][0],
-            eval["area"][0],
-        )
-        accuracy_list.append(accuracy)
-        energy_list.append(energy)
-        timing_list.append(timing)
-        area_list.append(area)
-        param_list.append(param)
-        if is_eligible(accuracy, energy, timing, area, constraints):
-            eligible_points.append(
-                {"accuracy": accuracy, "energy": energy, "timing": timing, "area": area}
+        for eval in evals:
+            accuracy, energy, timing, area = (
+                eval["accuracy"][0],
+                eval["power"][0],
+                eval["performance"][0],
+                eval["area"][0],
             )
+            accuracy_list.append(accuracy)
+            energy_list.append(energy)
+            timing_list.append(timing)
+            area_list.append(area)
+            param_list.append(param)
+            if is_eligible(accuracy, energy, timing, area, constraints):
+                eligible_points.append(
+                    {"accuracy": accuracy, "energy": energy, "timing": timing, "area": area}
+                )
 
         # Hypervolume calculation
         if iter >= num_trials:

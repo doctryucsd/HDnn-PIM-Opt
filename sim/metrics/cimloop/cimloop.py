@@ -16,10 +16,10 @@ from .performance import Performance
 from .power import Power
 
 
-class CIMLoop(MetricManager):
-    def __init__(self, args: MetricArgs):
+class CiMLoop(MetricManager):
+    def __init__(self, args: MetricArgs, device: str):
         self.args: MetricArgs = args
-        self.accuracy_evaluator = Accuracy(args)
+        self.accuracy_evaluator = Accuracy(args, device)
         self.performance_evaluator = Performance(args)
         self.power_evaluator = Power(args)
         self.area_evaluator = Area(args)

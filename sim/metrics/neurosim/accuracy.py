@@ -10,10 +10,11 @@ from tqdm import tqdm
 from sim.models import HD, HDFactory, HDTrainer
 
 from ..metricArgs import MetricArgs
+from logging import Logger
 
 
 class Accuracy:
-    def __init__(self, args: MetricArgs):
+    def __init__(self, args: MetricArgs, device: str):
         # unpack args
         model_args = args.model_args
         training_args = args.training_args
@@ -30,7 +31,7 @@ class Accuracy:
         self.num_tests: int = training_args["num_tests"]
         self.epochs: int = training_args["epochs"]
         self.lr: float = training_args["lr"]
-        self.device: str = training_args["device"]
+        self.device: str = device
 
         # hardware args
         self.noisy: bool = hardware_args["noise"]
@@ -40,7 +41,7 @@ class Accuracy:
         self.train_loader: DataLoader = train_loader
         self.test_loader: DataLoader = test_loader
 
-    def evaluate(self, params: Dict[str, Any]):
+    def evaluate(self, params: Dict[str, Any], logger: Logger):
         # params
         hd_dim: int = params["hd_dim"]
         kron: bool = params["kron"]
@@ -52,7 +53,7 @@ class Accuracy:
 
         # construct hd
         hd_factory = HDFactory(
-            self.input_size, hd_dim, self.num_classes, binarize_type, self.device
+            self.input_size, hd_dim, self.num_classes, binarize_type, self.device, logger
         )
         if kron:
             # pass

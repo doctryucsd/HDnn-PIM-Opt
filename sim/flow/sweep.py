@@ -121,15 +121,16 @@ def sweep(args: DictConfig) -> None:
         #     break
 
         _, idx = cli.get_next_trial()
-        eval = evaluator.evaluate(param, logger)
+        evals = evaluator.evaluate([param], logger)
 
         cli.complete_trial(idx, raw_data=eval)  # type: ignore
 
-        accuracy_list.append(eval["accuracy"][0])
-        energy_list.append(eval["power"][0])
-        timing_list.append(eval["performance"][0])
-        area_list.append(eval["area"][0])
-        param_list.append(param)
+        for eval in evals:
+            accuracy_list.append(eval["accuracy"][0])
+            energy_list.append(eval["power"][0])
+            timing_list.append(eval["performance"][0])
+            area_list.append(eval["area"][0])
+            param_list.append(param)
 
         model = Models.BOTORCH_MODULAR(
             experiment=cli.experiment,

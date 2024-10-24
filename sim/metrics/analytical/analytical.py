@@ -13,12 +13,12 @@ from .power import Power
 
 
 class Analytical(MetricManager):
-    def __init__(self, args: MetricArgs):
+    def __init__(self, args: MetricArgs, device: str):
         self.args: MetricArgs = args
         self.area_evaluator = Area(args)
         self.performance_evaluator = Performance(args)
         self.power_evaluator = Power(args)
-        self.accuracy_evaluator = Accuracy(args)
+        self.accuracy_evaluator = Accuracy(args, device)
 
         # model args
         model_args = args.model_args
@@ -56,7 +56,7 @@ class Analytical(MetricManager):
         ret.update(
             self.power_evaluator.evaluate(params, num_rerams_inf, num_rerams_enc, ops)
         )
-        ret.update(self.accuracy_evaluator.evaluate(params))
+        ret.update(self.accuracy_evaluator.evaluate(params, logger))
         return ret
 
     def get_optimizations_prop(self):

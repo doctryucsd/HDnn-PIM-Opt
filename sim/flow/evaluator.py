@@ -26,6 +26,6 @@ def evaluator(args: DictConfig) -> None:
     )
 
     param: Dict[str, Any] = args["evaluator"]["param"]
-    eval = evaluator.evaluate(param, logger)
+    eval = evaluator.evaluate([param], logger)
 
     logger.info(eval)

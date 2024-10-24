@@ -14,9 +14,9 @@ from .power import Power
 
 
 class NeuroSim(MetricManager):
-    def __init__(self, args: MetricArgs):
+    def __init__(self, args: MetricArgs, device: str):
         self.args: MetricArgs = args
-        self.accuracy_evaluator = Accuracy(args)
+        self.accuracy_evaluator = Accuracy(args, device)
         self.performance_evaluator = Performance(args)
         self.power_evaluator = Power(args)
         self.area_evaluator = Area(args)
@@ -45,7 +45,7 @@ class NeuroSim(MetricManager):
         reram_size: int = params["reram_size"]
         freqeuency: int = params["frequency"]
 
-        accuracy_dict = self.accuracy_evaluator.evaluate(params)
+        accuracy_dict = self.accuracy_evaluator.evaluate(params, logger)
         hd_model = self.accuracy_evaluator.hd_model_non_noisy
 
         if kron:

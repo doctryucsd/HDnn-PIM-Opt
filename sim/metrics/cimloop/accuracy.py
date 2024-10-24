@@ -14,7 +14,7 @@ from ..metricArgs import MetricArgs
 
 
 class Accuracy:
-    def __init__(self, args: MetricArgs):
+    def __init__(self, args: MetricArgs, device: str):
         # unpack args
         model_args = args.model_args
         training_args = args.training_args
@@ -34,7 +34,7 @@ class Accuracy:
         self.hd_lr: float = training_args["hd_lr"]
         self.cnn_epochs: int = training_args["cnn_epochs"]
         self.cnn_lr: float = training_args["cnn_lr"]
-        self.device: str = training_args["device"]
+        self.device: str = device
 
         # hardware args
         self.noisy: bool = hardware_args["noise"]

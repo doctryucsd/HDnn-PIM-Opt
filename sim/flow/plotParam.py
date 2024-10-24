@@ -89,14 +89,15 @@ def plot_param(args: DictConfig) -> None:
         # HACK
         param["d1"] = d1_value
 
-        eval = evaluator.evaluate(param, logger)
+        evals = evaluator.evaluate([param], logger)
         logger.info(eval)
 
         # update metrcis
-        accuracy_list.append(eval["accuracy"][0])
-        energy_list.append(eval["power"][0])
-        timing_list.append(eval["performance"][0])
-        area_list.append(eval["area"][0])
+        for eval in evals:
+            accuracy_list.append(eval["accuracy"][0])
+            energy_list.append(eval["power"][0])
+            timing_list.append(eval["performance"][0])
+            area_list.append(eval["area"][0])
 
     plot_metrics(
         param_name, param_list, accuracy_list, energy_list, timing_list, area_list

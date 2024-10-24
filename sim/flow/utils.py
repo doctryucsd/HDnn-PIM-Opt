@@ -10,6 +10,7 @@ import torch
 from sim.datasets import load_dataset
 from sim.metrics import MetricArgs, MetricManager, metric_manager_factory
 from sim.utils import get_params_from_loader
+from sim.evaluator import Evaluator
 
 
 def process_params_prop(props: List[Dict[str, Any]]):
@@ -42,7 +43,7 @@ def get_evaluator(
     hardware_args: Dict[str, Any],
     cwd: str,
     logger: Logger,
-) -> MetricManager:
+) -> Evaluator:
     dataset: str = data_args["dataset"]
     train_loader, _, test_loader = load_dataset(dataset, cwd, data_args, True, logger)
 
@@ -64,7 +65,7 @@ def get_evaluator(
     # assert not (not noise and noise_training), "noise is false and noise_training is true"
 
     # evaluator
-    evaluator = metric_manager_factory(hardware_args["type"], metric_args)
+    evaluator = Evaluator(hardware_args["type"], metric_args)
     return evaluator
 
 
