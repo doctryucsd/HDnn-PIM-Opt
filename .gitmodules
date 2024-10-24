@@ -7,6 +7,3 @@
 [submodule "pytorx"]
 	path = pytorx
 	url = https://github.com/doctryucsd/pytorx.git
-[submodule "timeloop-accelergy-exercises"]
-	path = timeloop-accelergy-exercises
-	url = https://github.com/doctryucsd/timeloop-accelergy-exercises.git
