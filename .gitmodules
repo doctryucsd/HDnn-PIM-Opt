@@ -7,3 +7,9 @@
 [submodule "pytorx"]
 	path = pytorx
 	url = https://github.com/doctryucsd/pytorx.git
+[submodule "timeloop"]
+	path = timeloop
+	url = https://github.com/doctryucsd/timeloop-accelergy-exercises.git
+[submodule "neurosim"]
+	path = neurosim
+	url = https://github.com/doctryucsd/DNN_NeuroSim_V1.4.git
