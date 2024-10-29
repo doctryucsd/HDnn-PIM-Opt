@@ -58,9 +58,7 @@ class Power:
         logger.info(f"{self.name()}: {total_energy}uJ")
 
         ret = self._normalize(total_energy)
-
-        metrics = {self.name(): (ret, 0.0)}
-        return metrics
+        return (ret, 0.0)
 
     @staticmethod
     def name() -> str:

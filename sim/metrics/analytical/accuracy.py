@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from logging import Logger
 from typing import Any, Dict, List
 
 import numpy as np
@@ -10,7 +11,6 @@ from tqdm import tqdm
 from sim.models import HD, HDFactory, HDTrainer
 
 from ..metricArgs import MetricArgs
-from logging import Logger
 
 
 class Accuracy:
@@ -53,7 +53,12 @@ class Accuracy:
 
         # construct hd
         hd_factory = HDFactory(
-            self.input_size, hd_dim, self.num_classes, binarize_type, self.device, logger
+            self.input_size,
+            hd_dim,
+            self.num_classes,
+            binarize_type,
+            self.device,
+            logger,
         )
         if kron:
             # pass

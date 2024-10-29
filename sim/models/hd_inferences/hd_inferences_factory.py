@@ -11,7 +11,7 @@ from .hd_inference import HDInference
 
 
 class HDInferenceFactory:
-    def __init__(self, hd_dim: int, num_classes: int, device: str):
+    def __init__(self, hd_dim: int, num_classes: int, device: str | int):
         # parameters
         self.hd_dim: int = hd_dim
         self.num_classes: int = num_classes

@@ -25,7 +25,7 @@ class CNNFactory:
         stride_2: int,
         padding_2,
         dilation_2: int,
-        device: str,
+        device: str | int,
     ) -> None:
         cnn1 = nn.Conv2d(
             in_channels_1,

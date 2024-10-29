@@ -14,9 +14,10 @@ from ax.service.ax_client import AxClient, ObjectiveProperties
 from omegaconf import DictConfig
 from tqdm import tqdm
 
+from sim.evaluator import Evaluator
 from sim.utils import dump_metrics, generate_arithmetic_sequence
 
-from .utils import get_evaluator, metric_type2bool, process_params_prop, set_seed
+from .utils import metric_type2bool, process_params_prop, set_seed
 
 
 def generate_param(prop: Dict[str, Any], interval: int):
@@ -83,7 +84,7 @@ def sweep(args: DictConfig) -> None:
     params_prop = process_params_prop(args["params_prop"])
 
     # get evaluator
-    evaluator = get_evaluator(
+    evaluator = Evaluator(
         args["data"],
         args["training"],
         args["hardware"],

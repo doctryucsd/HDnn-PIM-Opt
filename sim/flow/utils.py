@@ -7,10 +7,10 @@ from typing import Any, Dict, List
 import numpy as np
 import torch
 
-from sim.datasets import load_dataset
-from sim.metrics import MetricArgs, MetricManager, metric_manager_factory
-from sim.utils import get_params_from_loader
+from sim.datasets import load_dataloader
 from sim.evaluator import Evaluator
+from sim.metrics import MetricArgs, MetricManager, metric_manager_factory
+from sim.utils import get_params_from_dataloader
 
 
 def process_params_prop(props: List[Dict[str, Any]]):
@@ -37,36 +37,36 @@ def process_params_prop(props: List[Dict[str, Any]]):
     return params_prop
 
 
-def get_evaluator(
-    data_args: Dict[str, Any],
-    training_args: Dict[str, Any],
-    hardware_args: Dict[str, Any],
-    cwd: str,
-    logger: Logger,
-) -> Evaluator:
-    dataset: str = data_args["dataset"]
-    train_loader, _, test_loader = load_dataset(dataset, cwd, data_args, True, logger)
+# def get_evaluator(
+#     data_args: Dict[str, Any],
+#     training_args: Dict[str, Any],
+#     hardware_args: Dict[str, Any],
+#     cwd: str,
+#     logger: Logger,
+# ) -> Evaluator:
+#     dataset: str = data_args["dataset"]
+#     train_loader, _, test_loader = load_dataset(dataset, cwd, data_args, True, logger)
 
-    # set args
-    num_classes, input_size, channels = get_params_from_loader(train_loader)
-    ckpt_path: str = os.path.join(cwd, f"models/{dataset}.ckpt")
-    model_args: Dict[str, Any] = {
-        "num_classes": num_classes,
-        # "input_channel": input_channel,
-        # "cnn_output_dim": cnn_output_dim,
-        "input_size": input_size,
-        "input_channels": channels,
-        "ckpt_path": ckpt_path,
-    }
-    metric_args = MetricArgs(
-        model_args, training_args, hardware_args, train_loader, test_loader, cwd
-    )
-    # noise_training: bool = args["optimization"]["noise_training"]
-    # assert not (not noise and noise_training), "noise is false and noise_training is true"
+#     # set args
+#     num_classes, input_size, channels = get_params_from_loader(train_loader)
+#     ckpt_path: str = os.path.join(cwd, f"models/{dataset}.ckpt")
+#     model_args: Dict[str, Any] = {
+#         "num_classes": num_classes,
+#         # "input_channel": input_channel,
+#         # "cnn_output_dim": cnn_output_dim,
+#         "input_size": input_size,
+#         "input_channels": channels,
+#         "ckpt_path": ckpt_path,
+#     }
+#     metric_args = MetricArgs(
+#         model_args, training_args, hardware_args, train_loader, test_loader, cwd
+#     )
+#     # noise_training: bool = args["optimization"]["noise_training"]
+#     # assert not (not noise and noise_training), "noise is false and noise_training is true"
 
-    # evaluator
-    evaluator = Evaluator(hardware_args["type"], metric_args)
-    return evaluator
+#     # evaluator
+#     evaluator = Evaluator(hardware_args["type"], metric_args)
+#     return evaluator
 
 
 def metric_type2bool(metric_type: str) -> bool:

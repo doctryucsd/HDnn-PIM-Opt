@@ -5,22 +5,22 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
+from sim.datasets import load_dataloader
 from sim.models import HD, HDFactory, HDTrainer
 
 from ..metricArgs import MetricArgs
 
 
 class Accuracy:
-    def __init__(self, args: MetricArgs, device: str):
+    def __init__(self, args: MetricArgs, device: str | int):
         # unpack args
         model_args = args.model_args
         training_args = args.training_args
         hardware_args = args.hardware_args
-        train_loader = args.train_loader
-        test_loader = args.test_loader
+        data_args = args.data_args
 
         # model args
         self.num_classes: int = model_args["num_classes"]
@@ -28,26 +28,26 @@ class Accuracy:
         self.input_channels: int = model_args["input_channels"]
 
         # training args
-        self.trainer = HDTrainer(training_args)
+        self.trainer = HDTrainer(device)
         self.num_tests: int = training_args["num_tests"]
         self.hd_epochs: int = training_args["hd_epochs"]
         self.hd_lr: float = training_args["hd_lr"]
         self.cnn_epochs: int = training_args["cnn_epochs"]
         self.cnn_lr: float = training_args["cnn_lr"]
-        self.device: str = device
+        self.device: str | int = device
 
         # hardware args
         self.noisy: bool = hardware_args["noise"]
         self.temperature: int = hardware_args["temperature"]
         self.cnn: bool = hardware_args["cnn"]
 
-        # dataloaders
-        self.train_loader: DataLoader = train_loader
-        self.test_loader: DataLoader = test_loader
-
     def evaluate(
-        self, params: Dict[str, Any], logger: Logger
-    ) -> Dict[str, Tuple[float, float]]:
+        self,
+        params: Dict[str, Any],
+        train_loader: DataLoader,
+        test_loader: DataLoader,
+        logger: Logger,
+    ):
         # params
         hd_dim: int = params["hd_dim"]
         reram_size: int = params["reram_size"]
@@ -93,7 +93,7 @@ class Accuracy:
                 self.cnn_epochs,
                 self.cnn_lr,
                 self.device,
-                self.train_loader,
+                train_loader,
             )
         else:
             kron: bool = params["kron"]
@@ -104,8 +104,8 @@ class Accuracy:
 
         hd_factory.bernoulli()
         hd_factory.binarize(binarize_type)
-        hd_factory.init_buffer(self.train_loader)
-        hd_factory.retrain(self.train_loader, self.hd_epochs, self.hd_lr)
+        hd_factory.init_buffer(train_loader)
+        hd_factory.retrain(train_loader, self.hd_epochs, self.hd_lr)
 
         # finish training
         if self.noisy:
@@ -116,7 +116,7 @@ class Accuracy:
         hd = hd_factory.create().to(self.device)
 
         # testing
-        (acc_avg, acc_std) = self._inference(hd)
+        (acc_avg, acc_std) = self._inference(hd, test_loader)
 
         logger.info(f"Accuracy: {acc_avg:.2f} ± {acc_std:.2f}")
 
@@ -128,7 +128,7 @@ class Accuracy:
 
         self.hd_factory = hd_factory
 
-        return metrics
+        return (ret_avg, ret_std)
 
     @property
     def hd_model_non_noisy(self) -> HD:
@@ -136,10 +136,10 @@ class Accuracy:
         return self.hd_factory.create_neurosim()
 
     @torch.no_grad()
-    def _inference(self, hd: HD):
+    def _inference(self, hd: HD, test_loader: DataLoader):
         accs: List[float] = []
         for _ in tqdm(range(self.num_tests), desc="Inference"):
-            acc = self.trainer.test(hd, self.test_loader)
+            acc = self.trainer.test(hd, test_loader)
             accs.append(acc)
 
         acc_avg = float(np.average(accs))

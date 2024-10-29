@@ -8,23 +8,24 @@ seed: 42
 
 flow:
   # - pretrain
-  # - evaluator
-  - optimization
+  - evaluator
+  # - optimization
   # - sweep
   # - plot_param
 
 data:
-  dataset: cifar10
+  dataset: mnist
   train_batch_size: 512
   test_batch_size: 16
-  num_workers: 4
+  num_workers: 0
   train_ratio: 0.8
 
 training:
-  device: cuda:0
-  cnn_epochs: 30 # mnist: 10, cifar10: 30
-  cnn_lr: 0.01 # mnist: 0.05, cifar10: 0.01
-  hd_epochs: 15 # mnist: 10, cifar10: 15
+  devices: 
+    - cuda:0
+  cnn_epochs: 10 # mnist: 10, cifar10: 30
+  cnn_lr: 0.05 # mnist: 0.05, cifar10: 0.01
+  hd_epochs: 10 # mnist: 10, cifar10: 15
   hd_lr: 1.0
   num_tests: 5
 

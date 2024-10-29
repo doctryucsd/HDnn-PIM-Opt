@@ -9,7 +9,9 @@ import torch
 from matplotlib import pyplot as plt
 from omegaconf import DictConfig
 
-from .utils import get_evaluator, set_seed
+from sim.evaluator import Evaluator
+
+from .utils import set_seed
 
 
 def plot_metrics(
@@ -61,7 +63,7 @@ def plot_param(args: DictConfig) -> None:
     # set seed
     set_seed(args["seed"])
 
-    evaluator = get_evaluator(
+    evaluator = Evaluator(
         args["data"],
         args["training"],
         args["hardware"],

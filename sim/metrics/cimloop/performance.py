@@ -18,9 +18,7 @@ class Performance:
         # self.num_classes: int = model_args["num_classes"]
         # self.input_size: int = model_args["input_size"]
 
-    def evaluate(
-        self, asic_delay: float, reram_delay: float, logger: Logger
-    ) -> Dict[str, Tuple[float, float]]:
+    def evaluate(self, asic_delay: float, reram_delay: float, logger: Logger):
         total_delay = asic_delay + reram_delay
 
         performance = total_delay * UNIT
@@ -28,7 +26,7 @@ class Performance:
         logger.info(f"{self.name()}: {performance}us")
 
         ret = self._normalize(performance)
-        return {self.name(): (ret, 0.0)}
+        return (ret, 0.0)
 
     @staticmethod
     def name() -> str:

@@ -4,7 +4,7 @@ import os
 from logging import Logger
 from typing import Any, Dict, List
 
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision import datasets, transforms
 
 from .pickle_dataset import PickleDataset
@@ -57,14 +57,14 @@ def transform_factory(dataset: str):
     return transforms.Compose(transform_list)
 
 
-def load_dataset(
-    dataset_name: str, cwd: str, data_args: Dict[str, Any], eval: bool, logger: Logger
+def get_dataset(
+    dataset_name: str,
+    cwd: str,
+    data_args: Dict[str, Any],
+    eval: bool,
+    logger: Logger | None,
 ):
-    # args
-    train_batch_size: int = data_args["train_batch_size"]
-    test_batch_size: int = data_args["test_batch_size"]
     split: float = data_args["train_ratio"] if not eval else 1.0
-    num_workers: int = data_args["num_workers"]
 
     assert 0 < split <= 1, "train_ratio must be in (0, 1]"
 
@@ -81,16 +81,53 @@ def load_dataset(
     # split train, val, test sets
     train_set, val_set = split_train_val_sets(split, train_set_all)
 
+    if logger is not None:
+        logger.info(f"image size: {train_set[0][0].shape}")
+
+    return test_set, train_set, val_set
+
+
+def get_dataloader(
+    data_args: Dict[str, Any],
+    test_set: Dataset,
+    val_set: Dataset | None,
+    train_set: Dataset,
+):
+    train_batch_size: int = data_args["train_batch_size"]
+    test_batch_size: int = data_args["test_batch_size"]
+    num_workers: int = data_args["num_workers"]
+
     train_loader = DataLoader(
         train_set, batch_size=train_batch_size, num_workers=num_workers, shuffle=True
     )
-    val_loader = DataLoader(
-        val_set, batch_size=train_batch_size, num_workers=num_workers
-    )
+    if val_set is not None:
+        val_loader = DataLoader(
+            val_set, batch_size=train_batch_size, num_workers=num_workers
+        )
+    else:
+        val_loader = None
+
     test_loader = DataLoader(
         test_set, batch_size=test_batch_size, num_workers=num_workers
     )
 
-    logger.info(f"image size: {train_set[0][0].shape}")
+    return train_loader, val_loader, test_loader
+
+
+def load_dataloader(
+    dataset_name: str,
+    cwd: str,
+    data_args: Dict[str, Any],
+    eval: bool,
+    logger: Logger | None = None,
+):
+    # args
+    test_set, train_set, val_set = get_dataset(
+        dataset_name, cwd, data_args, eval, logger
+    )
+
+    train_loader, val_loader, test_loader = get_dataloader(
+        data_args, test_set, val_set, train_set
+    )
 
     return train_loader, val_loader, test_loader
