@@ -8,8 +8,8 @@ seed: 42
 
 flow:
   # - pretrain
-  - evaluator
-  # - optimization
+  # - evaluator
+  - optimization
   # - sweep
   # - plot_param
 

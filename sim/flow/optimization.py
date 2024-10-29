@@ -290,11 +290,11 @@ def optimization(args: DictConfig) -> None:
 
         param, idx = cli.get_next_trial()
 
-        evals = evaluator.evaluate(param, logger)
-        cli.complete_trial(idx, raw_data=eval)  # type: ignore
+        evals = evaluator.evaluate([param], logger)
 
         # collect metrics
         for eval in evals:
+            cli.complete_trial(idx, raw_data=eval)  # type: ignore
             accuracy, energy, timing, area = (
                 eval["accuracy"][0],
                 eval["power"][0],
