@@ -52,7 +52,7 @@ class CiMLoop(MetricManager):
     ):
         # parameters
         reram_size: int = params["reram_size"]
-        freqeuency: int = params["frequency"]
+        frequency: int = params["frequency"]
         cnn_x_dim_1: int = params["cnn_x_dim_1"]
         cnn_y_dim_1: int = params["cnn_y_dim_1"]
         cnn_x_dim_2: int = params["cnn_x_dim_2"]
@@ -80,7 +80,7 @@ class CiMLoop(MetricManager):
                 cnn_y_dim_2,
                 encoder_x_dim,
                 encoder_y_dim,
-                freqeuency,
+                frequency,
                 5,
             )
             reram_energy, reram_delay, reram_area, _ = cimloop_ppa(
@@ -90,7 +90,7 @@ class CiMLoop(MetricManager):
                     next(iter(test_loader))[0][0][None, :].to(self.device)
                 ),
                 reram_size,
-                freqeuency,
+                frequency,
                 5,
             )
         else:
@@ -105,7 +105,7 @@ class CiMLoop(MetricManager):
                     cnn_y_dim_2,
                     encoder_x_dim,
                     encoder_y_dim,
-                    freqeuency,
+                    frequency,
                     5,
                 )
                 reram_energy, reram_delay, reram_area, _ = cimloop_ppa(
@@ -115,7 +115,7 @@ class CiMLoop(MetricManager):
                         next(iter(test_loader))[0][0][None, :].to(self.device)
                     ),
                     reram_size,
-                    freqeuency,
+                    frequency,
                     5,
                 )
             else:
@@ -125,7 +125,7 @@ class CiMLoop(MetricManager):
                     hd_model,
                     next(iter(test_loader))[0].to(self.device),
                     reram_size,
-                    freqeuency,
+                    frequency,
                     5,
                 )
 

@@ -9,9 +9,10 @@ seed: 42
 flow:
   # - pretrain
   # - evaluator
-  - optimization
+  # - optimization
   # - sweep
   # - plot_param
+  - data_collect
 
 data:
   dataset: mnist
@@ -112,6 +113,20 @@ params_prop:
     type: fixed
     value: 1e8
     value_type: int
+  # - name: frequency
+  #   type: choice
+  #   values:
+  #     - 1e8
+  #     - 2e8
+  #     - 3e8
+  #     - 4e8
+  #     - 5e8
+  #     - 6e8
+  #     - 7e8
+  #     - 8e8
+  #     - 9e8
+  #     - 1e9
+  #   value_type: int
   - name: out_channels_1
     type: choice
     values:
@@ -292,3 +307,6 @@ plot_param:
       - 64
       - 64
       - 64
+
+data_collect:
+  output_file: hdnn-pim.csv # absolute path if from checkpoint
