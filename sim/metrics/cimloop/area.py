@@ -34,9 +34,7 @@ class Area:
 
         ret = self._normalize(area)
 
-        metrics = {self.name(): (ret, 0.0)}
-
-        return metrics
+        return (ret, 0.0)
 
     @staticmethod
     def name() -> str:

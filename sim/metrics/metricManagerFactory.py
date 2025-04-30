@@ -4,18 +4,22 @@ from .metricArgs import MetricArgs
 from .metricManager import MetricManager
 
 
-def metric_manager_factory(typ: str, args: MetricArgs) -> MetricManager:
-    if typ == "analytical":
-        from .analytical.analytical import Analytical
+def metric_manager_factory(
+    typ: str, args: MetricArgs, device: str | int
+) -> MetricManager:
+    if typ == "cimloop":
+        from .cimloop.cimloop import CiMLoop
 
-        return Analytical(args)
-    elif typ == "neurosim":
-        from .neurosim.neurosim import NeuroSim
+        return CiMLoop(args, device)
 
-        return NeuroSim(args)
-    elif typ == "cimloop":
-        from .cimloop.cimloop import CIMLoop
+    # FIXME: Implement the following classes
+    # elif typ == "analytical":
+    #     from .analytical.analytical import Analytical
+    #     return Analytical(args, device)
 
-        return CIMLoop(args)
+    # elif typ == "neurosim":
+    #     from .neurosim.neurosim import NeuroSim
+    #     return NeuroSim(args, device)
+
     else:
         raise ValueError(f"Invalid metric manager type: {typ}")

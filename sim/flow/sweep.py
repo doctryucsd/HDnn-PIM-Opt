@@ -14,9 +14,10 @@ from ax.service.ax_client import AxClient, ObjectiveProperties
 from omegaconf import DictConfig
 from tqdm import tqdm
 
+from sim.evaluator import Evaluator
 from sim.utils import dump_metrics, generate_arithmetic_sequence
 
-from .utils import get_evaluator, metric_type2bool, process_params_prop, set_seed
+from .utils import metric_type2bool, process_params_prop, set_seed
 
 
 def generate_param(prop: Dict[str, Any], interval: int):
@@ -83,7 +84,7 @@ def sweep(args: DictConfig) -> None:
     params_prop = process_params_prop(args["params_prop"])
 
     # get evaluator
-    evaluator = get_evaluator(
+    evaluator = Evaluator(
         args["data"],
         args["training"],
         args["hardware"],
@@ -121,15 +122,16 @@ def sweep(args: DictConfig) -> None:
         #     break
 
         _, idx = cli.get_next_trial()
-        eval = evaluator.evaluate(param, logger)
+        evals = evaluator.evaluate([param], logger)
 
         cli.complete_trial(idx, raw_data=eval)  # type: ignore
 
-        accuracy_list.append(eval["accuracy"][0])
-        energy_list.append(eval["power"][0])
-        timing_list.append(eval["performance"][0])
-        area_list.append(eval["area"][0])
-        param_list.append(param)
+        for eval in evals:
+            accuracy_list.append(eval["accuracy"][0])
+            energy_list.append(eval["power"][0])
+            timing_list.append(eval["performance"][0])
+            area_list.append(eval["area"][0])
+            param_list.append(param)
 
         model = Models.BOTORCH_MODULAR(
             experiment=cli.experiment,

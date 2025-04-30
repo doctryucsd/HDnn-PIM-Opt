@@ -14,6 +14,6 @@ To run the optimization, run
 ````
 python -m sim
 ````
-The results will in be `outputs/`.
+The results will be in `outputs/`.
 
 To change the settings, please modify `conf/config.yaml`.

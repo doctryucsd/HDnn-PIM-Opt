@@ -8,10 +8,10 @@ import torch
 import numpy as np
 
 from neurosim.Inference_pytorch import neurosim_ppa
-from sim.datasets import load_dataset
+from sim.datasets import load_dataloader
 from sim.flow.optimization import get_model
-from sim.flow.utils import get_evaluator
 from sim.models import HDFactory
+from sim.evaluator import Evaluator
 
 NEUROSIM_PARAMS = [
         {
@@ -176,7 +176,7 @@ def test_optimization():
         "temperature": 300,
         "power": "energy",
     }
-    evaluator = get_evaluator(data_args, training_args, hardware_args, ".")
+    evaluator = Evaluator(data_args, training_args, hardware_args, ".")
     metrics_prop = evaluator.get_optimizations_prop()
 
     # BO framework
@@ -248,7 +248,7 @@ def test_neurosim_ppa():
         "num_workers": 4,
         "train_ratio": 0.8,
     }
-    train_loader, _, test_loader = load_dataset("mnist", ".", data_args, True)
+    train_loader, _, test_loader = load_dataloader("mnist", ".", data_args, True)
     # params
     hd_dim: int = 512
     f1: int = 49

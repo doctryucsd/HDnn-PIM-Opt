@@ -15,8 +15,8 @@ from .hd import HD
 
 
 class HDTrainer:
-    def __init__(self, training_args: Dict[str, Any]) -> None:
-        self.device: str = training_args["device"]
+    def __init__(self, device: str | int) -> None:
+        self.device: str | int = device
 
     @torch.no_grad()
     def test(

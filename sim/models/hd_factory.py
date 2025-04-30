@@ -20,7 +20,7 @@ class HDFactory:
         hd_dim: int,
         num_classes: int,
         binarize_type: bool,
-        device: str,
+        device: str | int,
         logger: Logger,
     ):
         # parameters
@@ -53,7 +53,7 @@ class HDFactory:
         inner_dim: int,
         epochs: int,
         lr: float,
-        device: str,
+        device: str | int,
         train_loader: DataLoader,
     ):
         self.cnn_factory = CNNFactory(

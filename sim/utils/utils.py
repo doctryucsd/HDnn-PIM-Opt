@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import torch
 from botorch.utils.multi_objective import is_non_dominated
 from torch import Tensor
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 
 
 def calculate_acc(pred: Tensor, label: Tensor):
@@ -96,20 +96,8 @@ def generate_arithmetic_sequence(min_val: float, max_val: float, num_elements: i
     return sequence
 
 
-def get_image_shape(dataloader: DataLoader) -> Tuple[int, int, int]:
-    # Take the first batch
-    data = next(iter(dataloader))
-    # Check if the DataLoader returns a tuple (images, labels) or just images
-    if isinstance(data, tuple):
-        images, _ = data
-    elif isinstance(data, list):
-        assert len(data) == 2, f"len(data)={len(data)}"
-        images = data[0]
-    else:
-        images = data
-
-    # Print the shape of the images in the first batch and exit the loop
-    shape = images.shape
+def get_image_shape(image: Tensor) -> Tuple[int, int, int]:
+    shape = image.shape
     if len(shape) == 4:
         _, c, h, w = shape
         return c, h, w
@@ -123,7 +111,41 @@ def get_image_shape(dataloader: DataLoader) -> Tuple[int, int, int]:
         raise ValueError(f"Invalid shape: {shape}")
 
 
-def get_num_classes(dataloader: DataLoader) -> int:
+def get_first_image_dataset(dataset: Dataset) -> Tensor:
+    return dataset[0][0]
+
+
+def get_first_image_dataloader(dataloader: DataLoader) -> Tensor:
+    # Take the first batch
+    data = next(iter(dataloader))
+    # Check if the DataLoader returns a tuple (image, labels) or just image
+    if isinstance(data, tuple):
+        image, _ = data
+    elif isinstance(data, list):
+        assert len(data) == 2, f"len(data)={len(data)}"
+        image = data[0]
+    else:
+        image = data
+
+    return image
+
+
+def get_image_shape_dataset(dataset: Dataset) -> Tuple[int, int, int]:
+    image = get_first_image_dataset(dataset)
+    return get_image_shape(image)
+
+
+def get_image_shape_dataloader(dataloader: DataLoader) -> Tuple[int, int, int]:
+    image = get_first_image_dataloader(dataloader)
+    return get_image_shape(image)
+
+
+def get_num_classes_dataset(dataset: Dataset) -> int:
+    labels = torch.tensor([datapoint[1] for datapoint in dataset])
+    return len(labels.unique())
+
+
+def get_num_classes_dataloader(dataloader: DataLoader) -> int:
     # Iterate over the DataLoader
     data = next(iter(dataloader))
     # Check if the DataLoader returns a tuple (images, labels) or just images
@@ -183,11 +205,22 @@ def get_cnn_out_dim(h: int, w: int) -> int:
     return total_features
 
 
-def get_params_from_loader(dataloader: DataLoader):
-    channels, h, w = get_image_shape(dataloader)
-    num_classes = get_num_classes(dataloader)
+def get_params_from_dataloader(dataloader: DataLoader):
+    channels, h, w = get_image_shape_dataloader(dataloader)
+    num_classes = get_num_classes_dataloader(dataloader)
     # cnn_output_dim = get_cnn_out_dim(h, w)
     input_size = h * w * channels
+    return num_classes, input_size, channels
+
+
+def get_params_from_dataset(dataset: Dataset):
+    channels, h, w = get_image_shape_dataset(dataset)
+    num_classes = get_num_classes_dataset(dataset)
+    # cnn_output_dim = get_cnn_out_dim(h, w)
+    input_size = h * w * channels
+    from rich import print
+
+    print(f"num_classes: {num_classes}, input_size: {input_size}, channels: {channels}")
     return num_classes, input_size, channels
 
 

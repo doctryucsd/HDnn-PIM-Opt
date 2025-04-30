@@ -14,14 +14,14 @@ from .utils import bernoulli_1_neg1
 
 
 class EncoderFactory:
-    def __init__(self, input_size: int, hd_dim: int, device: str):
+    def __init__(self, input_size: int, hd_dim: int, device: str | int):
         """
         Initialization: one matrix with random values.
         """
         # parameters
         self.input_size: int = input_size
         self.hd_dim: int = hd_dim
-        self.device: str = device
+        self.device: str | int = device
 
         # flags
         self.binary: bool = False

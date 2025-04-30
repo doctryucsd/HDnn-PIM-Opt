@@ -15,10 +15,11 @@ from omegaconf import DictConfig
 from pymoo.indicators.hv import HV
 from tqdm import tqdm
 
+from sim.evaluator import Evaluator
 from sim.utils import dump_metrics
 
 from .acqfManagerFactory import acqf_factory
-from .utils import get_evaluator, metric_type2bool, process_params_prop, set_seed
+from .utils import metric_type2bool, process_params_prop, set_seed
 
 
 def process_metrics(metrics_prop: Dict[str, str]):
@@ -164,7 +165,7 @@ def optimization(args: DictConfig) -> None:
     params_prop = process_params_prop(args["params_prop"])
 
     # Load dataset
-    evaluator = get_evaluator(
+    evaluator = Evaluator(
         args["data"],
         args["training"],
         args["hardware"],
@@ -199,27 +200,35 @@ def optimization(args: DictConfig) -> None:
     # BO loop
     num_epochs: int = args["optimization"]["num_epochs"]
     for iter in tqdm(range(num_epochs)):
+        # FIXME, TODO: collect params
+
         param, idx = cli.get_next_trial()
 
-        eval = evaluator.evaluate(param, logger)
-        cli.complete_trial(idx, raw_data=eval)  # type: ignore
+        evals = evaluator.evaluate([param], logger)
 
         # collect metrics
-        accuracy, energy, timing, area = (
-            eval["accuracy"][0],
-            eval["power"][0],
-            eval["performance"][0],
-            eval["area"][0],
-        )
-        accuracy_list.append(accuracy)
-        energy_list.append(energy)
-        timing_list.append(timing)
-        area_list.append(area)
-        param_list.append(param)
-        if is_eligible(accuracy, energy, timing, area, constraints):
-            eligible_points.append(
-                {"accuracy": accuracy, "energy": energy, "timing": timing, "area": area}
+        for eval in evals:
+            cli.complete_trial(idx, raw_data=eval)  # type: ignore
+            accuracy, energy, timing, area = (
+                eval["accuracy"][0],
+                eval["power"][0],
+                eval["performance"][0],
+                eval["area"][0],
             )
+            accuracy_list.append(accuracy)
+            energy_list.append(energy)
+            timing_list.append(timing)
+            area_list.append(area)
+            param_list.append(param)
+            if is_eligible(accuracy, energy, timing, area, constraints):
+                eligible_points.append(
+                    {
+                        "accuracy": accuracy,
+                        "energy": energy,
+                        "timing": timing,
+                        "area": area,
+                    }
+                )
 
         # Hypervolume calculation
         if iter >= num_trials:

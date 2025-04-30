@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from omegaconf import DictConfig
 
+from .data_collect import data_collect
 from .evaluator import evaluator
 from .optimization import optimization
 from .plotParam import plot_param
@@ -17,3 +18,5 @@ def run(args: DictConfig) -> None:
         sweep(args)
     if "plot_param" in args["flow"]:
         plot_param(args)
+    if "data_collect" in args["flow"]:
+        data_collect(args)

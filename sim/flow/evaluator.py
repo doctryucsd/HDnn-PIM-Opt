@@ -4,11 +4,11 @@ import logging
 from typing import Any, Dict
 
 import hydra
-import numpy as np
-import torch
 from omegaconf import DictConfig
 
-from .utils import get_evaluator, set_seed
+from sim.evaluator import Evaluator
+
+from .utils import set_seed
 
 
 def evaluator(args: DictConfig) -> None:
@@ -17,7 +17,7 @@ def evaluator(args: DictConfig) -> None:
     # set seed
     set_seed(args["seed"])
 
-    evaluator = get_evaluator(
+    evaluator = Evaluator(
         args["data"],
         args["training"],
         args["hardware"],
@@ -26,6 +26,6 @@ def evaluator(args: DictConfig) -> None:
     )
 
     param: Dict[str, Any] = args["evaluator"]["param"]
-    eval = evaluator.evaluate(param, logger)
+    eval = evaluator.evaluate([param], logger)
 
     logger.info(eval)
