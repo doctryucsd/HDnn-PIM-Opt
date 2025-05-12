@@ -102,11 +102,11 @@ def get_image_shape(image: Tensor) -> Tuple[int, int, int]:
         _, c, h, w = shape
         return c, h, w
     elif len(shape) == 3:
-        _, h, w = shape
-        return 1, h, w
+        c, h, w = shape
+        return c, h, w
     elif len(shape) == 2:
-        _, w = shape
-        return 1, 1, w
+        h, w = shape
+        return 1, h, w
     else:
         raise ValueError(f"Invalid shape: {shape}")
 

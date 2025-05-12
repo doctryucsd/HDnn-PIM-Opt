@@ -10,6 +10,9 @@ from torch import Tensor
 from database import Point, PointSet
 from utils import read_metric_file
 
+POINT_SIZE: int = 200
+BASELINE_SIZE: int = 300
+CMAP: str = "viridis"
 
 def filter_constraints(
     points: PointSet, constraints: List[float]
@@ -73,7 +76,7 @@ def plot_3d_scatter(
     processed_pareto_set = pareto_set.plot_process(metrics)
     pareto_x, pareto_y, pareto_z = processed_pareto_set
     pareto_indices = pareto_set.get_indices()
-    pareto_scatter = ax.scatter(pareto_x, pareto_y, pareto_z, c=pareto_indices, cmap="viridis", s=80)  # type: ignore
+    pareto_scatter = ax.scatter(pareto_x, pareto_y, pareto_z, c=pareto_indices, cmap=CMAP, s=POINT_SIZE)  # type: ignore
 
     # plot colorbar for pareto set
     num_ticks = 5  # Number of ticks to display on the colorbar
@@ -90,19 +93,19 @@ def plot_3d_scatter(
     if dominated_set is not None:
         processed_dominated_set = dominated_set.plot_process(metrics)
         dominated_x, dominated_y, dominated_z = processed_dominated_set
-        ax.scatter(dominated_x, dominated_y, dominated_z, color="black", s=80)
+        ax.scatter(dominated_x, dominated_y, dominated_z, color="black", s=POINT_SIZE)
 
     # plot ineligible set
     if uneligible_set is not None:
         processed_ineligible_set = uneligible_set.plot_process(metrics)
         ineligible_x, ineligible_y, ineligible_z = processed_ineligible_set
-        ax.scatter(ineligible_x, ineligible_y, ineligible_z, color="gray", s=80)
+        ax.scatter(ineligible_x, ineligible_y, ineligible_z, color="gray", s=POINT_SIZE)
 
     # plot baseline
     if baseline is not None:
         processed_baseline = baseline.process_plot(metrics)
         baseline_x, baseline_y, baseline_z = processed_baseline
-        ax.scatter(baseline_x, baseline_y, baseline_z, color=point_color, s=100, label=point_label)  # type: ignore
+        ax.scatter(baseline_x, baseline_y, baseline_z, color=point_color, s=BASELINE_SIZE, label=point_label)  # type: ignore
         ax.legend()
 
     # plot notes
@@ -129,7 +132,7 @@ def plot_3d_scatter(
     plt.tight_layout()
 
     # Show the plot
-    plt.savefig("pareto_set_constraint.png")
+    plt.savefig("pareto_set_constraint.pdf", format="pdf")
 
 
 def main(
@@ -201,8 +204,11 @@ if __name__ == "__main__":
 
     # Numerical settings
     # accuracy, energy, performance, area
-    constraint: List[float] = [0.9, 0.5, 0.2, 0.5]
-    baseline: List[float] = [0.93, 0.2, 0.2, 0.2]
+
+    # constraint: List[float] = [0.3, 0.5, 0.2, 0.5] # cifar10
+    constraint: List[float] = [0.8, 0.5, 0.2, 0.5] # fashion-mnist
+    # baseline: List[float] = [0.413, 0.727, 0.227, 0.287] # cifar10
+    baseline: List[float] = [0.813, 0.54, 0.1, 0.287] # fashion-mnist
     baseline_label: str = "Baseline"
     baseline_color: str = "red"
     notes: List[int] = [1, 10, 39]

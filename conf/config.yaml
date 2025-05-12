@@ -8,14 +8,14 @@ seed: 42
 
 flow:
   # - pretrain
-  # - evaluator
+  - evaluator
   # - optimization
   # - sweep
   # - plot_param
-  - data_collect
+  # - data_collect
 
 data:
-  dataset: mnist
+  dataset: fashion_mnist
   train_batch_size: 512
   test_batch_size: 16
   num_workers: 0
@@ -259,7 +259,7 @@ sweep:
 
 evaluator:
   param:
-    hd_dim: 4096
+    hd_dim: 4000
     # npe1: 214
     # npe2: 60
     reram_size: 256
@@ -267,23 +267,23 @@ evaluator:
     # d1: 128
     # kron: false
     frequency: 1e8
-    out_channels_1: 4
-    kernel_size_1: 5
-    stride_1: 1
+    out_channels_1: 64
+    kernel_size_1: 7
+    stride_1: 2
     padding_1: 0
     dilation_1: 1
     cnn_x_dim_1: 8
     cnn_y_dim_1: 8
-    out_channels_2: 8
-    kernel_size_2: 5
+    out_channels_2: 64
+    kernel_size_2: 3
     stride_2: 1
     padding_2: 0
     dilation_2: 1
-    cnn_x_dim_2: 16
-    cnn_y_dim_2: 16
-    encoder_x_dim: 16
-    encoder_y_dim: 16
-    inner_dim: 1024
+    cnn_x_dim_2: 4
+    cnn_y_dim_2: 4
+    encoder_x_dim: 8
+    encoder_y_dim: 8
+    inner_dim: 4092
 
 plot_param:
   var_param:
