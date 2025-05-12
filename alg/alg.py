@@ -94,16 +94,15 @@ def metric_type2bool(metric_type: str) -> bool:
 
 def get_constraint_values(
     constraints: Dict[str, float]
-) -> Tuple[float, float, float, float]:
-    accuracy_lower_bound = constraints["accuracy"]
-    power_upper_bound = constraints["power"]
-    performance_upper_bound = constraints["performance"]
-    area_upper_bound = constraints["area"]
+) -> Tuple[float, ...]:
+    # TODO: Define the constraints for the metrics
+    metric_0_bound = constraints["metric_0"]
+    metric_1_bound = constraints["metric_1"]
+    metric_2_bound = constraints["metric_2"]
     return (
-        accuracy_lower_bound,
-        power_upper_bound,
-        performance_upper_bound,
-        area_upper_bound,
+        metric_0_bound,
+        metric_1_bound,
+        metric_2_bound,
     )
 
 
@@ -111,29 +110,27 @@ def get_constraint_matrix(
     constraints: Dict[str, float]
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     (
-        accuracy_lower_bound,
-        power_upper_bound,
-        performance_upper_bound,
-        area_upper_bound,
+        metric_0_bound,
+        metric_1_bound,
+        metric_2_bound,
     ) = get_constraint_values(constraints)
 
     # Create A and b for the linear constraints
     A = torch.tensor(
         [
-            [-1.0, 0.0, 0.0, 0.0],  # accuracy
-            [0.0, 1.0, 0.0, 0.0],  # power
-            [0.0, 0.0, 1.0, 0.0],  # performance
-            [0.0, 0.0, 0.0, 1.0],  # area
+            [-1.0, 0.0, 0.0],  # metric_0: max
+            [0.0, 1.0, 0.0],  # metric_1: min
+            [0.0, 0.0, -1.0],  # metric_2: max
         ],
         dtype=torch.float64,
     )
 
     b = torch.tensor(
         [
-            -accuracy_lower_bound,
-            power_upper_bound,
-            performance_upper_bound,
-            area_upper_bound,
+            -metric_0_bound,
+            metric_1_bound,
+            -metric_2_bound,
+            # Add other constraints if needed
         ],
         dtype=torch.float64,
     )
@@ -195,22 +192,21 @@ def get_model(
 
 
 def is_eligible(
-    accuracy: float,
-    energy: float,
-    timing: float,
-    area: float,
+    metric_0: float,
+    metric_1: float,
+    metric_2: float,
     constraints: Dict[str, float],
 ):
-    accuracy_lower_bound, power_upper_bound, timing_upper_bound, area_upper_bound = (
+    # TODO: Define the constraints for the metrics
+    metric_0_bound, metric_1_bound, metric_2_bound = (
         get_constraint_values(constraints)
     )
 
     return (
         True
-        and accuracy >= accuracy_lower_bound
-        and energy <= power_upper_bound
-        and timing <= timing_upper_bound
-        and area <= area_upper_bound
+        and metric_0 >= metric_0_bound # metric_0: max
+        and metric_1 <= metric_1_bound # metric_1: min
+        and metric_2 >= metric_2_bound # metric_2: max
     )
 
 def dump_metrics(metrics: Dict[str, List[float]], filename: str) -> None:
@@ -239,10 +235,10 @@ def optimization(seed: int, processed_params_prop: List[Dict[str, Any]], constra
     )
 
     # all kinds of parameters and metrics of interest during BO
-    accuracy_list: List[float] = []
-    energy_list: List[float] = []
-    timing_list: List[float] = []
-    area_list: List[float] = []
+    # TODO: Define the metric names
+    metric_0_list: List[float] = []
+    metric_1_list: List[float] = []
+    metric_2_list: List[float] = []
     hv_list: List[float] = []
     param_list: List[Dict[str, Any]] = []
     eligible_points: List[Dict[str, Any]] = []
@@ -255,21 +251,20 @@ def optimization(seed: int, processed_params_prop: List[Dict[str, Any]], constra
         eval = evaluator.evaluate(param)
         cli.complete_trial(idx, raw_data=eval)  # type: ignore
 
+        # TODO: Change the metric names to the ones used in the evaluator
         # collect metrics
-        accuracy, energy, timing, area = (
-            eval["accuracy"][0],
-            eval["power"][0],
-            eval["performance"][0],
-            eval["area"][0],
+        metric_0, metric_1, metric_2 = (
+            eval["metric_0"][0],
+            eval["metric_1"][0],
+            eval["metric_2"][0],
         )
-        accuracy_list.append(accuracy)
-        energy_list.append(energy)
-        timing_list.append(timing)
-        area_list.append(area)
+        metric_0_list.append(metric_0)
+        metric_1_list.append(metric_1)
+        metric_2_list.append(metric_2)
         param_list.append(param)
-        if is_eligible(accuracy, energy, timing, area, constraints):
+        if is_eligible(metric_0, metric_1, metric_2, constraints):
             eligible_points.append(
-                {"accuracy": accuracy, "energy": energy, "timing": timing, "area": area}
+                {"metric_0": metric_0, "metric_1": metric_1, "metric_2": metric_2}
             )
 
         # Hypervolume calculation
@@ -303,10 +298,9 @@ def optimization(seed: int, processed_params_prop: List[Dict[str, Any]], constra
         hv_constrained_list.append(hv_constrained)
 
     data = {
-        "accuracy": accuracy_list,
-        "energy": energy_list,
-        "timing": timing_list,
-        "area": area_list,
+        "accuracy": metric_0_list,
+        "energy": metric_1_list,
+        "timing": metric_2_list,
         "hv": hv_list,
         "hv_constrained": hv_constrained_list,
         "param": param_list,
