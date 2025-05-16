@@ -1,0 +1,26 @@
+param:
+  hd_dim: 4000
+  # npe1: 214
+  # npe2: 60
+  reram_size: 256
+  # f1: 200
+  # d1: 128
+  # kron: false
+  frequency: 1e8
+  out_channels_1: 64
+  kernel_size_1: 7
+  stride_1: 2
+  padding_1: 0
+  dilation_1: 1
+  cnn_x_dim_1: 8
+  cnn_y_dim_1: 8
+  out_channels_2: 64
+  kernel_size_2: 3
+  stride_2: 1
+  padding_2: 0
+  dilation_2: 1
+  cnn_x_dim_2: 4
+  cnn_y_dim_2: 4
+  encoder_x_dim: 8
+  encoder_y_dim: 8
+  inner_dim: 4092

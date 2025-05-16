@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from logging import Logger
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from sim.datasets import load_dataloader
 from sim.models import HD, HDFactory, HDTrainer
 
 from ..metricArgs import MetricArgs
@@ -49,8 +48,6 @@ class Accuracy:
     ):
         # params
         hd_dim: int = params["hd_dim"]
-        reram_size: int = params["reram_size"]
-        frequency: int = params["frequency"]
         binarize_type: bool = False
         out_channels_1: int = params["out_channels_1"]
         kernel_size_1: int = params["kernel_size_1"]
@@ -74,44 +71,31 @@ class Accuracy:
             logger,
         )
 
-        # construct cnn and encoder
-        if self.cnn:
-            hd_factory.set_cnn(
-                self.input_channels,
-                out_channels_1,
-                kernel_size_1,
-                stride_1,
-                padding_1,
-                dilation_1,
-                out_channels_2,
-                kernel_size_2,
-                stride_2,
-                padding_2,
-                dilation_2,
-                inner_dim,
-                self.cnn_epochs,
-                self.cnn_lr,
-                self.device,
-                train_loader,
-            )
-        else:
-            kron: bool = params["kron"]
-            if kron:
-                f1: int = params["f1"]
-                d1: int = params["d1"]
-                hd_factory.set_kronecker(d1, f1)
+        # construct the model
+        hd_factory.set_cnn(
+            self.input_channels,
+            out_channels_1,
+            kernel_size_1,
+            stride_1,
+            padding_1,
+            dilation_1,
+            out_channels_2,
+            kernel_size_2,
+            stride_2,
+            padding_2,
+            dilation_2,
+            inner_dim,
+            self.cnn_epochs,
+            self.cnn_lr,
+            self.device,
+            train_loader,
+        )
 
         hd_factory.bernoulli()
         hd_factory.binarize(binarize_type)
         hd_factory.init_buffer(train_loader)
         hd_factory.retrain(train_loader, self.hd_epochs, self.hd_lr)
 
-        # finish training
-        if self.noisy:
-            if not self.cnn:
-                if not kron:
-                    hd_factory.noisy_encoder(reram_size, frequency, self.temperature)
-            hd_factory.noisy_inference(reram_size, frequency, self.temperature)
         hd = hd_factory.create().to(self.device)
 
         # testing

@@ -161,6 +161,8 @@ def optimization(args: DictConfig) -> None:
     # set seed
     set_seed(args["seed"])
 
+    print(args["params_prop"])
+
     # process props
     params_prop = process_params_prop(args["params_prop"])
 

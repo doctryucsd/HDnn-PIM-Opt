@@ -12,6 +12,11 @@ def metric_manager_factory(
 
         return CiMLoop(args, device)
 
+    if typ == "timeloop":
+        from .timeloop.timeloop import TimeLoop
+
+        return TimeLoop(args, device)
+
     # FIXME: Implement the following classes
     # elif typ == "analytical":
     #     from .analytical.analytical import Analytical

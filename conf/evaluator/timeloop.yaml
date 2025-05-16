@@ -1,0 +1,32 @@
+param:
+  # model parameters
+  hd_dim: 4000
+  frequency: 1e8
+  out_channels_1: 64
+  kernel_size_1: 7
+  stride_1: 2
+  padding_1: 0
+  dilation_1: 1
+  out_channels_2: 64
+  kernel_size_2: 3
+  stride_2: 1
+  padding_2: 0
+  dilation_2: 1
+  inner_dim: 4092
+  # hardware parameters
+  mesh_x: 14  # Number of PE columns
+  mesh_y: 12  # Number of PEs per column
+  # Global buffer parameters
+  glb_depth: 16384
+  glb_width: 64
+  glb_n_banks: 32
+  glb_read_bw: 16
+  glb_write_bw: 16
+  rf_depth: 12  # Depth for ifmap and weights RF
+  psum_rf_depth: 16  # Depth for psum RF
+  rf_width: 16
+  rf_read_bw: 2
+  rf_write_bw: 2
+  # MAC parameters
+  mac_mult_width: 8
+  mac_adder_width: 16

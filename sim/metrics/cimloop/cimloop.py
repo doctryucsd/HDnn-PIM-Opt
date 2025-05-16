@@ -8,7 +8,7 @@ from torch import Tensor, nn
 
 from cimloop.workspace import cimloop_ppa
 from sim.datasets import load_dataloader
-from timeloop.workspace import timeloop_ppa
+from timeloop.workspace import timeloop_ppa_hdnn
 
 from ..metricArgs import MetricArgs
 from ..metricManager import MetricManager
@@ -71,7 +71,7 @@ class CiMLoop(MetricManager):
 
         if self.cnn:
             assert hd_model.cnn is not None
-            asic_energy, asic_delay, asic_area, _ = timeloop_ppa(
+            asic_energy, asic_delay, asic_area, _ = timeloop_ppa_hdnn(
                 nn.Sequential(hd_model.cnn, hd_model.encoder),
                 next(iter(test_loader))[0][0][None, :].to(self.device),
                 cnn_x_dim_1,
@@ -81,7 +81,6 @@ class CiMLoop(MetricManager):
                 encoder_x_dim,
                 encoder_y_dim,
                 frequency,
-                5,
             )
             reram_energy, reram_delay, reram_area, _ = cimloop_ppa(
                 "HD",
@@ -96,7 +95,7 @@ class CiMLoop(MetricManager):
         else:
             kron: bool = params["kron"]
             if kron:
-                asic_energy, asic_delay, asic_area, _ = timeloop_ppa(
+                asic_energy, asic_delay, asic_area, _ = timeloop_ppa_hdnn(
                     hd_model.encoder,
                     next(iter(test_loader))[0][0][None, :].to(self.device),
                     cnn_x_dim_1,
@@ -106,7 +105,6 @@ class CiMLoop(MetricManager):
                     encoder_x_dim,
                     encoder_y_dim,
                     frequency,
-                    5,
                 )
                 reram_energy, reram_delay, reram_area, _ = cimloop_ppa(
                     "HD",
