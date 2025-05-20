@@ -30,7 +30,7 @@ training:
     - cuda:0
   cnn_epochs: 1 # mnist: 10, cifar10: 30
   cnn_lr: 0.05 # mnist: 0.05, cifar10: 0.01
-  hd_epochs: 1 # mnist: 10, cifar10: 15
+  hd_epochs: 0 # mnist: 10, cifar10: 15
   hd_lr: 1.0
   num_tests: 1
 

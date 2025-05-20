@@ -74,7 +74,11 @@ class Evaluator:
         n_gpus = torch.cuda.device_count()
         shared_tensor = torch.zeros((n_gpus, 4, 2), dtype=torch.float32)
         shared_tensor.share_memory_()
-        mp.spawn(self._evaluate, args=(params, shared_tensor, logger), nprocs=n_gpus)  # type: ignore
+        # mp.spawn(self._evaluate, args=(params, shared_tensor, logger), nprocs=n_gpus)  # type: ignore
+
+        # debug
+        for i in range(n_gpus):
+            self._evaluate(i, params, shared_tensor, logger)
 
         # process results
         def tensor2result(eval_results: Tensor) -> Dict[str, Any]:
