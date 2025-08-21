@@ -28,11 +28,11 @@ data:
 training:
   devices: 
     - cuda:0
-  cnn_epochs: 1 # mnist: 10, cifar10: 30
+  cnn_epochs: 10 # mnist: 10, cifar10: 30
   cnn_lr: 0.05 # mnist: 0.05, cifar10: 0.01
-  hd_epochs: 0 # mnist: 10, cifar10: 15
+  hd_epochs: 10 # mnist: 10, cifar10: 15
   hd_lr: 1.0
-  num_tests: 1
+  num_tests: 5
 
 hardware:
   type: timeloop
@@ -54,10 +54,9 @@ pretrain:
 optimization:
   num_trials: 60
   num_epochs: 60
-  acqf: qExpectedHypervolumeImprovement
-  metrics_file: cifar10_random
+  acqf: qNoisyExpectedHypervolumeImprovement
+  metrics_file: fashion_mnist-NEHVI-no_constraint
   constrained: false
-  preferenced: true
   constraints:
     accuracy: 0.3
     power: 0.2

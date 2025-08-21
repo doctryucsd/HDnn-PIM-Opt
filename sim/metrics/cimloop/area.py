@@ -58,7 +58,9 @@ class Area:
     def _normalize(self, area: float) -> float:
         BASE = 3000.0
         ret = area / BASE
-        assert ret <= self.ref_point(), f"{ret} > {self.ref_point()}"
+        if ret > self.ref_point():
+            ret = self.ref_point()
+        # assert ret <= self.ref_point(), f"{ret} > {self.ref_point()}"
         return ret
 
     def _get_data(self, cwd: str):

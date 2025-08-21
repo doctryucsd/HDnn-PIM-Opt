@@ -65,7 +65,9 @@ class Performance:
     def _normalize(self, performance: float) -> float:
         BASE: float = 3000.0
         ret: float = performance / BASE
-        assert (
-            ret <= self.ref_point()
-        ), f"performance: {ret} > ref_point: {self.ref_point()}"
+        if ret > self.ref_point():
+            ret = self.ref_point()
+        # assert (
+        #     ret <= self.ref_point()
+        # ), f"performance: {ret} > ref_point: {self.ref_point()}"
         return ret

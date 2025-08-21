@@ -8,4 +8,4 @@ models/*
 layer_record*/
 build/
 # *.png
-run.sh
+dbg*.txt

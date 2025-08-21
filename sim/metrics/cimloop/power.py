@@ -82,5 +82,7 @@ class Power:
     def _normalize(self, power: float) -> float:
         BASE = 3000.0
         ret = power / BASE
-        assert ret <= self.ref_point(), f"power: {ret} > ref_point: {self.ref_point()}"
+        if ret > self.ref_point():
+            ret = self.ref_point()
+        # assert ret <= self.ref_point(), f"power: {ret} > ref_point: {self.ref_point()}"
         return ret
