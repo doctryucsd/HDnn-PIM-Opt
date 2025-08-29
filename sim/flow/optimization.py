@@ -19,6 +19,7 @@ from sim.evaluator import Evaluator
 from sim.utils import dump_metrics
 
 from .acqfManagerFactory import acqf_factory
+from .constraint_scheduler import make_constraint_scheduler
 from .utils import metric_type2bool, process_params_prop, set_seed
 
 
@@ -91,17 +92,9 @@ def get_model(
     logger: Logger,
 ) -> AxClient:
     botorch_acqf_class = acqf_factory(acqf)
-    A, b = get_constraint_matrix(constraints)  # Bound values
-    if constrained:
-        model_kwargs = {
-            "torch_device": "cpu",
-            "botorch_acqf_class": botorch_acqf_class,
-            "acquisition_options": {
-                "outcome_constraints": (A, b),
-            },
-        }
-    else:
-        model_kwargs = {"torch_device": "cpu", "botorch_acqf_class": botorch_acqf_class}
+    # Note: For dynamic constraints we will construct model per-iteration.
+    # Here we keep a simple GS config; dynamic outcome constraints are handled in the loop.
+    model_kwargs = {"torch_device": "cpu", "botorch_acqf_class": botorch_acqf_class}
     cli = AxClient(
         GenerationStrategy(
             [
@@ -179,9 +172,11 @@ def optimization(args: DictConfig) -> None:
     constrained: bool = args["optimization"]["constrained"]
     # BO framework
     num_trials = args["optimization"]["num_trials"]
+    acqf_name: str = args["optimization"]["acqf"]
+    botorch_acqf_class = acqf_factory(acqf_name)
     cli = get_model(
         num_trials,
-        args["optimization"]["acqf"],
+        acqf_name,
         params_prop,
         metrics_prop,
         constraints,
@@ -199,12 +194,47 @@ def optimization(args: DictConfig) -> None:
     eligible_points: List[Dict[str, Any]] = []
     hv_constrained_list: List[float] = []
 
+    # Setup constraint scheduler (only used if constrained)
+    schedule_type: str = args["optimization"].get("threshold_schedule", "static")
+    if constrained:
+        scheduler = make_constraint_scheduler(schedule_type, constraints)
+    else:
+        scheduler = None  # type: ignore
+
     # BO loop
     num_epochs: int = args["optimization"]["num_epochs"]
     for iter in tqdm(range(num_epochs)):
-        # FIXME, TODO: collect params
+        # Decide generation strategy and current constraints
+        if constrained and iter >= num_trials:
+            # Scheduled constraints over the remaining iterations
+            step_idx = iter - num_trials
+            total_steps = max(1, num_epochs - num_trials)
+            current_constraints = scheduler.get(step_idx, total_steps)  # type: ignore
 
-        param, idx = cli.get_next_trial()
+            # Create a fresh BoTorch modular model with updated outcome constraints
+            A, B = get_constraint_matrix(current_constraints)
+            model = Models.BOTORCH_MODULAR(
+                experiment=cli.experiment,
+                data=cli.experiment.fetch_data(),
+                botorch_acqf_class=botorch_acqf_class,
+                acquisition_options={
+                    "outcome_constraints": (A, B),
+                },
+                torch_device=torch.device("cpu"),
+            )
+            gr = model.gen(1)
+            # Ax 0.2+/0.3+: access parameters via arms
+            param = gr.arms[0].parameters
+            _, idx = cli.attach_trial(param)  # type: ignore
+        else:
+            # Sobol phase or unconstrained: pure random/Sobol generation
+            model = Models.SOBOL(
+                experiment=cli.experiment,
+                data=cli.experiment.fetch_data(),
+            )
+            gr = model.gen(1)
+            param = gr.arms[0].parameters
+            _, idx = cli.attach_trial(param)  # type: ignore
 
         evals = evaluator.evaluate([param], logger)
 
@@ -222,42 +252,51 @@ def optimization(args: DictConfig) -> None:
             timing_list.append(timing)
             area_list.append(area)
             param_list.append(param)
-            if is_eligible(accuracy, energy, timing, area, constraints):
-                eligible_points.append(
-                    {
-                        "accuracy": accuracy,
-                        "energy": energy,
-                        "timing": timing,
-                        "area": area,
-                    }
-                )
+            # We'll recompute eligibility each iteration using the current schedule when
+            # calculating constrained HV, so we don't persist eligibility here.
 
         # Hypervolume calculation
-        if iter >= num_trials:
-            model = cli.generation_strategy.model
-        else:
-            model = Models.BOTORCH_MODULAR(
-                experiment=cli.experiment,
-                data=cli.experiment.fetch_data(),
-            )
+        # Recompute a BoTorch modular model from accumulated data for HV
+        model = Models.BOTORCH_MODULAR(
+            experiment=cli.experiment,
+            data=cli.experiment.fetch_data(),
+        )
         hv = observed_hypervolume(model)
         hv_list.append(hv)
 
         # Hypervolume calculation with constraints
-        if len(eligible_points) > 0:
-            # ref_point: [accuracy, energy, timing, area], pymoo default is minimization
-            ref_point = np.array([0.0, 1.0, 1.0, 1.0])
-            hv_constrained_calculation = HV(ref_point=ref_point)
-            points = np.array(
-                [
-                    [-x["accuracy"], x["energy"], x["timing"], x["area"]]
-                    for x in eligible_points
-                ]
-            )
-            hv_constrained = hv_constrained_calculation(points)
-            assert (
-                hv_constrained is not None and hv_constrained >= 0
-            ), f"Invalid hypervolume: {hv_constrained}"
+        # Compute eligibility based on the current scheduled constraints
+        if constrained and len(accuracy_list) > 0:
+            step_idx = min(max(iter - num_trials, 0), max(1, num_epochs - num_trials) - 1)
+            total_steps = max(1, num_epochs - num_trials)
+            current_constraints = scheduler.get(step_idx, total_steps)  # type: ignore
+
+            # Select eligible points among all evaluated so far
+            eligible_mask = [
+                is_eligible(a, e, t, ar, current_constraints)
+                for (a, e, t, ar) in zip(
+                    accuracy_list, energy_list, timing_list, area_list
+                )
+            ]
+            if any(eligible_mask):
+                # ref_point: [accuracy, energy, timing, area], pymoo default is minimization
+                ref_point = np.array([0.0, 1.0, 1.0, 1.0])
+                hv_constrained_calculation = HV(ref_point=ref_point)
+                points = np.array(
+                    [
+                        [-a, e, t, ar]
+                        for a, e, t, ar, ok in zip(
+                            accuracy_list, energy_list, timing_list, area_list, eligible_mask
+                        )
+                        if ok
+                    ]
+                )
+                hv_constrained = hv_constrained_calculation(points)
+                assert (
+                    hv_constrained is not None and hv_constrained >= 0
+                ), f"Invalid hypervolume: {hv_constrained}"
+            else:
+                hv_constrained = 0.0
         else:
             hv_constrained = 0.0
         hv_constrained_list.append(hv_constrained)

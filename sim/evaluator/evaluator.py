@@ -70,14 +70,14 @@ class Evaluator:
             self.metric_managers
         ), f"Number of params ({len(params)}) does not match number of evaluators ({len(self.metric_managers)})"
 
-        # run parallel evaluation
-        n_gpus = torch.cuda.device_count()
-        shared_tensor = torch.zeros((n_gpus, 4, 2), dtype=torch.float32)
+        # run evaluations; use number of configured evaluators
+        n_workers = len(self.metric_managers)
+        shared_tensor = torch.zeros((n_workers, 4, 2), dtype=torch.float32)
         shared_tensor.share_memory_()
-        # mp.spawn(self._evaluate, args=(params, shared_tensor, logger), nprocs=n_gpus)  # type: ignore
+        # mp.spawn(self._evaluate, args=(params, shared_tensor, logger), nprocs=n_workers)  # type: ignore
 
         # debug
-        for i in range(n_gpus):
+        for i in range(n_workers):
             self._evaluate(i, params, shared_tensor, logger)
 
         # process results
@@ -92,7 +92,7 @@ class Evaluator:
                 ret[name] = (eval_value[0].item(), eval_value[1].item())
             return ret
 
-        results = [tensor2result(shared_tensor[i]) for i in range(n_gpus)]
+        results = [tensor2result(shared_tensor[i]) for i in range(n_workers)]
 
         return results
 

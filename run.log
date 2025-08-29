@@ -1,0 +1,131 @@
+/usr/local/lib/python3.8/dist-packages/hydra/_internal/defaults_list.py:251: UserWarning: In 'config': Defaults list is missing `_self_`. See https://hydra.cc/docs/1.2/upgrades/1.0_to_1.1/default_composition_order for more information
+  warnings.warn(msg, UserWarning)
+[{'name': 'hd_dim', 'type': 'choice', 'values': [1024, 2048, 4096, 8192], 'value_type': 'int'}, {'name': 'reram_size', 'type': 'choice', 'values': [128, 256], 'value_type': 'int'}, {'name': 'kron', 'type': 'fixed', 'value': False, 'value_type': 'bool'}, {'name': 'frequency', 'type': 'fixed', 'value': 100000000.0, 'value_type': 'int'}, {'name': 'out_channels_1', 'type': 'choice', 'values': [4, 8, 16], 'value_type': 'int'}, {'name': 'kernel_size_1', 'type': 'choice', 'values': [3, 5], 'value_type': 'int'}, {'name': 'stride_1', 'type': 'range', 'bounds': [1, 2], 'value_type': 'int'}, {'name': 'padding_1', 'type': 'fixed', 'value': 0, 'value_type': 'int'}, {'name': 'dilation_1', 'type': 'fixed', 'value': 1, 'value_type': 'int'}, {'name': 'out_channels_2', 'type': 'choice', 'values': [8, 16, 32], 'value_type': 'int'}, {'name': 'kernel_size_2', 'type': 'choice', 'values': [3, 5], 'value_type': 'int'}, {'name': 'stride_2', 'type': 'range', 'bounds': [1, 2], 'value_type': 'int'}, {'name': 'padding_2', 'type': 'fixed', 'value': 0, 'value_type': 'int'}, {'name': 'dilation_2', 'type': 'fixed', 'value': 1, 'value_type': 'int'}, {'name': 'cnn_x_dim_1', 'type': 'choice', 'values': [8, 16], 'value_type': 'int'}, {'name': 'cnn_y_dim_1', 'type': 'choice', 'values': [8, 16], 'value_type': 'int'}, {'name': 'cnn_x_dim_2', 'type': 'choice', 'values': [8, 16], 'value_type': 'int'}, {'name': 'cnn_y_dim_2', 'type': 'choice', 'values': [8, 16], 'value_type': 'int'}, {'name': 'encoder_x_dim', 'type': 'choice', 'values': [8, 16], 'value_type': 'int'}, {'name': 'encoder_y_dim', 'type': 'choice', 'values': [8, 16], 'value_type': 'int'}, {'name': 'inner_dim', 'type': 'choice', 'values': [1024, 2048, 4096], 'value_type': 'int'}]
+[2025-08-29 01:55:32,816][optimization][INFO] - image size: torch.Size([1, 28, 28])
+num_classes: 10, input_size: 784, channels: 1
+[2025-08-29 01:55:33,624][root][INFO] - Located config file at /root/.config/accelergy/accelergy_config.yaml.
+[INFO 08-29 01:55:33] ax.service.ax_client: Starting optimization with verbose logging. To disable logging, set the `verbose_logging` argument to `False`. Note that float values in the logs are rounded to 6 decimal points.
+[2025-08-29 01:55:33,654][optimization][INFO] - parameter properties: [{'name': 'hd_dim', 'type': 'choice', 'values': [1024, 2048, 4096, 8192], 'value_type': 'int'}, {'name': 'reram_size', 'type': 'choice', 'values': [128, 256], 'value_type': 'int'}, {'name': 'kron', 'type': 'fixed', 'value': False, 'value_type': 'bool'}, {'name': 'frequency', 'type': 'fixed', 'value': 100000000, 'value_type': 'int'}, {'name': 'out_channels_1', 'type': 'choice', 'values': [4, 8, 16], 'value_type': 'int'}, {'name': 'kernel_size_1', 'type': 'choice', 'values': [3, 5], 'value_type': 'int'}, {'name': 'stride_1', 'type': 'range', 'bounds': [1.0, 2.0], 'value_type': 'int'}, {'name': 'padding_1', 'type': 'fixed', 'value': 0, 'value_type': 'int'}, {'name': 'dilation_1', 'type': 'fixed', 'value': 1, 'value_type': 'int'}, {'name': 'out_channels_2', 'type': 'choice', 'values': [8, 16, 32], 'value_type': 'int'}, {'name': 'kernel_size_2', 'type': 'choice', 'values': [3, 5], 'value_type': 'int'}, {'name': 'stride_2', 'type': 'range', 'bounds': [1.0, 2.0], 'value_type': 'int'}, {'name': 'padding_2', 'type': 'fixed', 'value': 0, 'value_type': 'int'}, {'name': 'dilation_2', 'type': 'fixed', 'value': 1, 'value_type': 'int'}, {'name': 'cnn_x_dim_1', 'type': 'choice', 'values': [8, 16], 'value_type': 'int'}, {'name': 'cnn_y_dim_1', 'type': 'choice', 'values': [8, 16], 'value_type': 'int'}, {'name': 'cnn_x_dim_2', 'type': 'choice', 'values': [8, 16], 'value_type': 'int'}, {'name': 'cnn_y_dim_2', 'type': 'choice', 'values': [8, 16], 'value_type': 'int'}, {'name': 'encoder_x_dim', 'type': 'choice', 'values': [8, 16], 'value_type': 'int'}, {'name': 'encoder_y_dim', 'type': 'choice', 'values': [8, 16], 'value_type': 'int'}, {'name': 'inner_dim', 'type': 'choice', 'values': [1024, 2048, 4096], 'value_type': 'int'}]
+[2025-08-29 01:55:33,654][optimization][INFO] - metric properties: [('accuracy', 'max', 0.0), ('power', 'min', 1.0), ('performance', 'min', 1.0), ('area', 'min', 1.0)]
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `is_ordered` is not specified for `ChoiceParameter` "hd_dim". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `is_ordered` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `sort_values` is not specified for `ChoiceParameter` "hd_dim". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `sort_values` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `is_ordered` is not specified for `ChoiceParameter` "reram_size". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `is_ordered` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `sort_values` is not specified for `ChoiceParameter` "reram_size". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `sort_values` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `is_ordered` is not specified for `ChoiceParameter` "out_channels_1". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `is_ordered` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `sort_values` is not specified for `ChoiceParameter` "out_channels_1". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `sort_values` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `is_ordered` is not specified for `ChoiceParameter` "kernel_size_1". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `is_ordered` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `sort_values` is not specified for `ChoiceParameter` "kernel_size_1". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `sort_values` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `is_ordered` is not specified for `ChoiceParameter` "out_channels_2". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `is_ordered` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `sort_values` is not specified for `ChoiceParameter` "out_channels_2". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `sort_values` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `is_ordered` is not specified for `ChoiceParameter` "kernel_size_2". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `is_ordered` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `sort_values` is not specified for `ChoiceParameter` "kernel_size_2". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `sort_values` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `is_ordered` is not specified for `ChoiceParameter` "cnn_x_dim_1". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `is_ordered` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `sort_values` is not specified for `ChoiceParameter` "cnn_x_dim_1". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `sort_values` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `is_ordered` is not specified for `ChoiceParameter` "cnn_y_dim_1". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `is_ordered` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `sort_values` is not specified for `ChoiceParameter` "cnn_y_dim_1". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `sort_values` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `is_ordered` is not specified for `ChoiceParameter` "cnn_x_dim_2". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `is_ordered` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `sort_values` is not specified for `ChoiceParameter` "cnn_x_dim_2". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `sort_values` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `is_ordered` is not specified for `ChoiceParameter` "cnn_y_dim_2". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `is_ordered` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `sort_values` is not specified for `ChoiceParameter` "cnn_y_dim_2". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `sort_values` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `is_ordered` is not specified for `ChoiceParameter` "encoder_x_dim". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `is_ordered` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `sort_values` is not specified for `ChoiceParameter` "encoder_x_dim". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `sort_values` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `is_ordered` is not specified for `ChoiceParameter` "encoder_y_dim". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `is_ordered` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `sort_values` is not specified for `ChoiceParameter` "encoder_y_dim". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `sort_values` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `is_ordered` is not specified for `ChoiceParameter` "inner_dim". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `is_ordered` during `ChoiceParameter` construction.
+  warn(
+/usr/local/lib/python3.8/dist-packages/ax/core/parameter.py:517: UserWarning: `sort_values` is not specified for `ChoiceParameter` "inner_dim". Defaulting to `True` for parameters of `ParameterType` INT. To override this behavior (or avoid this warning), specify `sort_values` during `ChoiceParameter` construction.
+  warn(
+[INFO 08-29 01:55:33] ax.service.utils.instantiation: Created search space: SearchSpace(parameters=[ChoiceParameter(name='hd_dim', parameter_type=INT, values=[1024, 2048, 4096, 8192], is_ordered=True, sort_values=True), ChoiceParameter(name='reram_size', parameter_type=INT, values=[128, 256], is_ordered=True, sort_values=True), FixedParameter(name='kron', parameter_type=BOOL, value=False), FixedParameter(name='frequency', parameter_type=INT, value=100000000), ChoiceParameter(name='out_channels_1', parameter_type=INT, values=[4, 8, 16], is_ordered=True, sort_values=True), ChoiceParameter(name='kernel_size_1', parameter_type=INT, values=[3, 5], is_ordered=True, sort_values=True), RangeParameter(name='stride_1', parameter_type=INT, range=[1, 2]), FixedParameter(name='padding_1', parameter_type=INT, value=0), FixedParameter(name='dilation_1', parameter_type=INT, value=1), ChoiceParameter(name='out_channels_2', parameter_type=INT, values=[8, 16, 32], is_ordered=True, sort_values=True), ChoiceParameter(name='kernel_size_2', parameter_type=INT, values=[3, 5], is_ordered=True, sort_values=True), RangeParameter(name='stride_2', parameter_type=INT, range=[1, 2]), FixedParameter(name='padding_2', parameter_type=INT, value=0), FixedParameter(name='dilation_2', parameter_type=INT, value=1), ChoiceParameter(name='cnn_x_dim_1', parameter_type=INT, values=[8, 16], is_ordered=True, sort_values=True), ChoiceParameter(name='cnn_y_dim_1', parameter_type=INT, values=[8, 16], is_ordered=True, sort_values=True), ChoiceParameter(name='cnn_x_dim_2', parameter_type=INT, values=[8, 16], is_ordered=True, sort_values=True), ChoiceParameter(name='cnn_y_dim_2', parameter_type=INT, values=[8, 16], is_ordered=True, sort_values=True), ChoiceParameter(name='encoder_x_dim', parameter_type=INT, values=[8, 16], is_ordered=True, sort_values=True), ChoiceParameter(name='encoder_y_dim', parameter_type=INT, values=[8, 16], is_ordered=True, sort_values=True), ChoiceParameter(name='inner_dim', parameter_type=INT, values=[1024, 2048, 4096], is_ordered=True, sort_values=True)], parameter_constraints=[]).
+  0%|          | 0/3 [00:00<?, ?it/s][INFO 08-29 01:55:33] ax.core.experiment: No trials are in a state expecting data.
+[INFO 08-29 01:55:33] ax.core.experiment: Attached custom parameterizations [{'hd_dim': 1024, 'reram_size': 256, 'out_channels_1': 16, 'kernel_size_1': 5, 'stride_1': 1, 'out_channels_2': 8, 'kernel_size_2': 3, 'stride_2': 1, 'cnn_x_dim_1': 8, 'cnn_y_dim_1': 8, 'cnn_x_dim_2': 16, 'cnn_y_dim_2': 16, 'encoder_x_dim': 16, 'encoder_y_dim': 16, 'inner_dim': 1024, 'kron': False, 'frequency': 100000000, 'padding_1': 0, 'dilation_1': 1, 'padding_2': 0, 'dilation_2': 1}] as trial 0.
+
+HD retraining:   0%|          | 0/1 [00:00<?, ?it/s][A
+HD retraining: 100%|██████████| 1/1 [00:07<00:00,  7.87s/it][AHD retraining: 100%|██████████| 1/1 [00:07<00:00,  7.87s/it]
+
+Inference:   0%|          | 0/1 [00:00<?, ?it/s][A
+Inference: 100%|██████████| 1/1 [00:01<00:00,  1.00s/it][AInference: 100%|██████████| 1/1 [00:01<00:00,  1.01s/it][2025-08-29 01:55:47,149][optimization][INFO] - Accuracy: 0.88 ± 0.00
+fan_in   1024, float_limit 0.054127, float std 0.044194, quant limit 0.9921875, scale 16.0
+fan_in    784, float_limit 0.061859, float std 0.050508, quant limit 0.9921875, scale 16.0
+
+[2025-08-29 01:55:53,004][optimization][INFO] - area: 1722.106728218624mm^2
+[2025-08-29 01:55:53,005][optimization][INFO] - performance: 0.16us
+[2025-08-29 01:55:53,005][optimization][INFO] - power: 0.0395776622592uJ
+[INFO 08-29 01:55:53] ax.service.ax_client: Completed trial 0 with data: {'accuracy': (0.8831, 0.0), 'performance': (1.3e-05, 0.0), 'power': (5.3e-05, 0.0), 'area': (0.574036, 0.0)}.
+[INFO 08-29 01:55:53] ax.modelbridge.transforms.standardize_y: Outcome accuracy is constant, within tolerance.
+[INFO 08-29 01:55:53] ax.modelbridge.transforms.standardize_y: Outcome performance is constant, within tolerance.
+[INFO 08-29 01:55:53] ax.modelbridge.transforms.standardize_y: Outcome power is constant, within tolerance.
+[INFO 08-29 01:55:53] ax.modelbridge.transforms.standardize_y: Outcome area is constant, within tolerance.
+/usr/local/lib/python3.8/dist-packages/botorch/models/utils/assorted.py:193: UserWarning: std(): degrees of freedom is <= 0. Correction should be strictly less than the reduction factor (input numel divided by output numel). (Triggered internally at ../aten/src/ATen/native/ReduceOps.cpp:1807.)
+  Ymean, Ystd = torch.mean(Y, dim=-2), torch.std(Y, dim=-2)
+ 33%|███▎      | 1/3 [00:19<00:38, 19.43s/it][INFO 08-29 01:55:53] ax.modelbridge.transforms.standardize_y: Outcome accuracy is constant, within tolerance.
+[INFO 08-29 01:55:53] ax.modelbridge.transforms.standardize_y: Outcome performance is constant, within tolerance.
+[INFO 08-29 01:55:53] ax.modelbridge.transforms.standardize_y: Outcome power is constant, within tolerance.
+[INFO 08-29 01:55:53] ax.modelbridge.transforms.standardize_y: Outcome area is constant, within tolerance.
+/usr/local/lib/python3.8/dist-packages/botorch/models/utils/assorted.py:193: UserWarning: std(): degrees of freedom is <= 0. Correction should be strictly less than the reduction factor (input numel divided by output numel). (Triggered internally at ../aten/src/ATen/native/ReduceOps.cpp:1807.)
+  Ymean, Ystd = torch.mean(Y, dim=-2), torch.std(Y, dim=-2)
+[INFO 08-29 01:55:53] ax.core.experiment: Attached custom parameterizations [{'hd_dim': 8192, 'reram_size': 256, 'out_channels_1': 4, 'kernel_size_1': 3, 'stride_1': 1, 'out_channels_2': 8, 'kernel_size_2': 5, 'stride_2': 2, 'cnn_x_dim_1': 16, 'cnn_y_dim_1': 8, 'cnn_x_dim_2': 8, 'cnn_y_dim_2': 8, 'encoder_x_dim': 16, 'encoder_y_dim': 16, 'inner_dim': 4096, 'kron': False, 'frequency': 100000000, 'padding_1': 0, 'dilation_1': 1, 'padding_2': 0, 'dilation_2': 1}] as trial 1.
+
+HD retraining:   0%|          | 0/1 [00:00<?, ?it/s][A
+HD retraining: 100%|██████████| 1/1 [00:16<00:00, 16.96s/it][AHD retraining: 100%|██████████| 1/1 [00:16<00:00, 16.96s/it]
+
+Inference:   0%|          | 0/1 [00:00<?, ?it/s][A
+Inference: 100%|██████████| 1/1 [00:02<00:00,  2.58s/it][AInference: 100%|██████████| 1/1 [00:02<00:00,  2.58s/it][2025-08-29 01:56:19,779][optimization][INFO] - Accuracy: 0.94 ± 0.00
+fan_in   8192, float_limit 0.019137, float std 0.015625, quant limit 0.9921875, scale 32.0
+fan_in    784, float_limit 0.061859, float std 0.050508, quant limit 0.9921875, scale 16.0
+[2025-08-29 01:56:25,569][optimization][INFO] - area: 1722.106728218624mm^2
+[2025-08-29 01:56:25,569][optimization][INFO] - performance: 0.16us
+[2025-08-29 01:56:25,569][optimization][INFO] - power: 0.3159921524736uJ
+
+[INFO 08-29 01:56:25] ax.service.ax_client: Completed trial 1 with data: {'accuracy': (0.9378, 0.0), 'performance': (0.000105, 0.0), 'power': (5.3e-05, 0.0), 'area': (0.574036, 0.0)}.
+[INFO 08-29 01:56:25] ax.modelbridge.transforms.standardize_y: Outcome power is constant, within tolerance.
+[INFO 08-29 01:56:25] ax.modelbridge.transforms.standardize_y: Outcome area is constant, within tolerance.
+/usr/local/lib/python3.8/dist-packages/botorch/models/utils/assorted.py:201: InputDataWarning: Input data is not standardized. Please consider scaling the input to zero mean and unit variance.
+  warnings.warn(msg, InputDataWarning)
+ 67%|██████▋   | 2/3 [00:52<00:27, 27.16s/it][INFO 08-29 01:56:25] ax.modelbridge.transforms.standardize_y: Outcome power is constant, within tolerance.
+[INFO 08-29 01:56:25] ax.modelbridge.transforms.standardize_y: Outcome area is constant, within tolerance.
+/usr/local/lib/python3.8/dist-packages/botorch/models/utils/assorted.py:201: InputDataWarning: Input data is not standardized. Please consider scaling the input to zero mean and unit variance.
+  warnings.warn(msg, InputDataWarning)
+[INFO 08-29 01:56:30] ax.core.experiment: Attached custom parameterizations [{'hd_dim': 4096, 'reram_size': 256, 'out_channels_1': 8, 'kernel_size_1': 3, 'stride_1': 1, 'out_channels_2': 8, 'kernel_size_2': 5, 'stride_2': 2, 'cnn_x_dim_1': 16, 'cnn_y_dim_1': 8, 'cnn_x_dim_2': 8, 'cnn_y_dim_2': 8, 'encoder_x_dim': 16, 'encoder_y_dim': 16, 'inner_dim': 2048, 'kron': False, 'frequency': 100000000, 'padding_1': 0, 'dilation_1': 1, 'padding_2': 0, 'dilation_2': 1}] as trial 2.
+
+HD retraining:   0%|          | 0/1 [00:00<?, ?it/s][A
+HD retraining: 100%|██████████| 1/1 [00:13<00:00, 13.92s/it][AHD retraining: 100%|██████████| 1/1 [00:13<00:00, 13.92s/it]
+
+Inference:   0%|          | 0/1 [00:00<?, ?it/s][A
+Inference: 100%|██████████| 1/1 [00:01<00:00,  1.68s/it][AInference: 100%|██████████| 1/1 [00:01<00:00,  1.68s/it][2025-08-29 01:56:51,292][optimization][INFO] - Accuracy: 0.89 ± 0.00
+fan_in   4096, float_limit 0.027063, float std 0.022097, quant limit 0.9921875, scale 32.0
+fan_in    784, float_limit 0.061859, float std 0.050508, quant limit 0.9921875, scale 16.0
+[2025-08-29 01:56:57,126][optimization][INFO] - area: 1722.106728218624mm^2
+[2025-08-29 01:56:57,126][optimization][INFO] - performance: 0.16us
+[2025-08-29 01:56:57,126][optimization][INFO] - power: 0.1580170477568uJ
+
+[INFO 08-29 01:56:57] ax.service.ax_client: Completed trial 2 with data: {'accuracy': (0.8885, 0.0), 'performance': (5.3e-05, 0.0), 'power': (5.3e-05, 0.0), 'area': (0.574036, 0.0)}.
+[INFO 08-29 01:56:57] ax.modelbridge.transforms.standardize_y: Outcome power is constant, within tolerance.
+[INFO 08-29 01:56:57] ax.modelbridge.transforms.standardize_y: Outcome area is constant, within tolerance.
+/usr/local/lib/python3.8/dist-packages/botorch/models/utils/assorted.py:201: InputDataWarning: Input data is not standardized. Please consider scaling the input to zero mean and unit variance.
+  warnings.warn(msg, InputDataWarning)
+100%|██████████| 3/3 [01:23<00:00, 29.17s/it]100%|██████████| 3/3 [01:23<00:00, 27.85s/it][2025-08-29 01:56:57,221][optimization][INFO] - metrics dumped
+

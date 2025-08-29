@@ -57,6 +57,7 @@ optimization:
   acqf: qNoisyExpectedHypervolumeImprovement
   metrics_file: fashion_mnist-NEHVI-no_constraint
   constrained: false
+  threshold_schedule: static # Choices: static | linear | exponential
   constraints:
     accuracy: 0.3
     power: 0.2

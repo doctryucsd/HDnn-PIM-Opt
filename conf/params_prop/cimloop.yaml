@@ -38,6 +38,11 @@
     - 128
     - 256
   value_type: int
+# Ensure non-CNN path has explicit `kron` parameter
+- name: kron
+  type: fixed
+  value: false
+  value_type: bool
 # - name: reram_size
 #   type: fixed
 #   value: 64
