@@ -65,7 +65,7 @@ if __name__ == "__main__":
 
     # Add arguments
     parser.add_argument("--metric_files", nargs="+", type=str, help="The metric files.")
-    parser.add_argument("--start_iter", type=int, default=10, help="The start iteration.")
+    parser.add_argument("--start_iter", type=int, default=0, help="The start iteration.")
     parser.add_argument("--end_iter", type=int, default=-1, help="The end iteration.")
 
     # Parse arguments
@@ -74,17 +74,23 @@ if __name__ == "__main__":
     # Numerical settings
     # accuracy, energy, performance, area
     constraints: List[List[float]] = [
-        [0.9, 0.2, 0.2, 0.2],
-        [0.8, 0.2, 0.2, 0.2],
+        # [0.9, 0.2, 0.2, 0.2],
+        # [0.8, 0.2, 0.2, 0.2],
         [0.3, 0.2, 0.2, 0.2],
         ]
     
-    methods: List[str] = ["random", "EHVI", "NEHVI", "EHVI_constraint", "NEHVI_constraint"]
-    workloads: List[str] = ["MNIST", "Fashion-MNIST", "CIFAR-10"]
+    # methods: List[str] = ["random", "EHVI", "NEHVI", "EHVI_constraint", "NEHVI_constraint"]
+    methods: List[str] = ["NEHVI", "NEHVI_constraint", "NEHVI_static"]
+    workloads: List[str] = ["CIFAR-10"]
+    # workloads: List[str] = ["MNIST", "Fashion-MNIST", "CIFAR-10"]
 
     # get parameters
     metric_files: List[str] = args.metric_files
     start_iter: int = args.start_iter
     end_iter: int = args.end_iter
+
+    print(f"Metric files: {metric_files}")
+    print(f"Methods: {methods}")
+    print(f"Workloads: {workloads}")
 
     main(metric_files, methods, workloads, constraints, start_iter, end_iter)

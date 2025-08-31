@@ -9,3 +9,4 @@ layer_record*/
 build/
 # *.png
 dbg*.txt
+logs/

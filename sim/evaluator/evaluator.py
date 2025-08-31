@@ -87,7 +87,9 @@ class Evaluator:
                 2,
             ), f"expected shape (4, 2), got {eval_results.shape}"
             ret: Dict[str, Any] = {}
-            metric_names = ["accuracy", "performance", "power", "area"]
+            # Must match the order used in the metric manager's ret_list
+            # (accuracy, power, performance, area)
+            metric_names = ["accuracy", "power", "performance", "area"]
             for name, eval_value in zip(metric_names, eval_results):
                 ret[name] = (eval_value[0].item(), eval_value[1].item())
             return ret

@@ -191,8 +191,8 @@ def optimization(args: DictConfig) -> None:
     area_list: List[float] = []
     hv_list: List[float] = []
     param_list: List[Dict[str, Any]] = []
-    eligible_points: List[Dict[str, Any]] = []
     hv_constrained_list: List[float] = []
+    eligible_count_list: List[int] = []
 
     # Setup constraint scheduler (only used if constrained)
     schedule_type: str = args["optimization"].get("threshold_schedule", "static")
@@ -252,7 +252,7 @@ def optimization(args: DictConfig) -> None:
             timing_list.append(timing)
             area_list.append(area)
             param_list.append(param)
-            # We'll recompute eligibility each iteration using the current schedule when
+            # We'll recompute eligibility each iteration using the final constraints when
             # calculating constrained HV, so we don't persist eligibility here.
 
         # Hypervolume calculation
@@ -265,11 +265,10 @@ def optimization(args: DictConfig) -> None:
         hv_list.append(hv)
 
         # Hypervolume calculation with constraints
-        # Compute eligibility based on the current scheduled constraints
+        # Compute eligibility based on the FINAL target constraints (fixed across iterations)
         if constrained and len(accuracy_list) > 0:
-            step_idx = min(max(iter - num_trials, 0), max(1, num_epochs - num_trials) - 1)
-            total_steps = max(1, num_epochs - num_trials)
-            current_constraints = scheduler.get(step_idx, total_steps)  # type: ignore
+            # Always evaluate constrained HV against final constraints
+            current_constraints = constraints
 
             # Select eligible points among all evaluated so far
             eligible_mask = [
@@ -278,7 +277,9 @@ def optimization(args: DictConfig) -> None:
                     accuracy_list, energy_list, timing_list, area_list
                 )
             ]
-            if any(eligible_mask):
+            eligible_count = int(sum(1 for ok in eligible_mask if ok))
+            eligible_count_list.append(eligible_count)
+            if eligible_count > 0:
                 # ref_point: [accuracy, energy, timing, area], pymoo default is minimization
                 ref_point = np.array([0.0, 1.0, 1.0, 1.0])
                 hv_constrained_calculation = HV(ref_point=ref_point)
@@ -299,6 +300,7 @@ def optimization(args: DictConfig) -> None:
                 hv_constrained = 0.0
         else:
             hv_constrained = 0.0
+            eligible_count_list.append(0)
         hv_constrained_list.append(hv_constrained)
 
     data = {
@@ -308,7 +310,8 @@ def optimization(args: DictConfig) -> None:
         "area": area_list,
         "hv": hv_list,
         "hv_constrained": hv_constrained_list,
+        "eligible_count": eligible_count_list,
         "param": param_list,
     }
     dump_metrics(data, args["optimization"]["metrics_file"])
-    logger.info("metrics dumped")
+    logger.info("\nmetrics dumped")

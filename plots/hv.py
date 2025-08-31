@@ -49,7 +49,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--constraint", action="store_true", help="If True, plot the constrained hv."
     )
-    parser.add_argument("--start_iter", type=int, default=9, help="The starting iteration for plotting.")
+    parser.add_argument("--start_iter", type=int, default=0, help="The starting iteration for plotting.")
     parser.add_argument("--end_iter", type=int, default=-1, help="The ending iteration for plotting.")
 
     args = parser.parse_args()

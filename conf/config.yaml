@@ -52,22 +52,22 @@ pretrain:
   epochs: 100
 
 optimization:
-  num_trials: 150
-  num_epochs: 150
+  num_trials: 10
+  num_epochs: 50
   acqf: qNoisyExpectedHypervolumeImprovement
   metrics_file: fashion_mnist-NEHVI-no_constraint
-  constrained: false
+  constrained: true
   threshold_schedule: static # Choices: static | linear | exponential
   constraints:
     accuracy: 0.3
     power: 0.2
     performance: 0.2
     area: 0.2
-  preference:
-    accuracy: 0.4
-    power: 0.2
-    performance: 0.2
-    area: 0.2
+  # preference:
+  #   accuracy: 0.4
+  #   power: 0.2
+  #   performance: 0.2
+  #   area: 0.2
 
 sweep:
   interval: 5
