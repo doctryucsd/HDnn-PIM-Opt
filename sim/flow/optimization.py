@@ -196,8 +196,22 @@ def optimization(args: DictConfig) -> None:
 
     # Setup constraint scheduler (only used if constrained)
     schedule_type: str = args["optimization"].get("threshold_schedule", "static")
+    schedule_final_iter_cfg = args["optimization"].get("threshold_schedule_final_iter", None)
+    # Determine scheduling window: starts after Sobol (num_trials)
+    schedule_start_iter = int(num_trials)
+    if schedule_final_iter_cfg is None:
+        schedule_end_iter = int(args["optimization"]["num_epochs"]) - 1
+    else:
+        # Clamp the configured final iter within [start_iter, num_epochs-1]
+        schedule_end_iter = int(schedule_final_iter_cfg)
+        schedule_end_iter = max(schedule_start_iter, schedule_end_iter)
+        schedule_end_iter = min(schedule_end_iter, int(args["optimization"]["num_epochs"]) - 1)
+    schedule_total_steps = max(1, schedule_end_iter - schedule_start_iter + 1)
+
     if constrained:
-        scheduler = make_constraint_scheduler(schedule_type, constraints)
+        scheduler = make_constraint_scheduler(
+            schedule_type, constraints, schedule_total_steps=schedule_total_steps
+        )
     else:
         scheduler = None  # type: ignore
 
@@ -208,8 +222,8 @@ def optimization(args: DictConfig) -> None:
         if constrained and iter >= num_trials:
             # Scheduled constraints over the remaining iterations
             step_idx = iter - num_trials
-            total_steps = max(1, num_epochs - num_trials)
-            current_constraints = scheduler.get(step_idx, total_steps)  # type: ignore
+            # Use scheduler's configured total steps (derived from schedule_final_iter)
+            current_constraints = scheduler.get(step_idx, None)  # type: ignore
 
             # Create a fresh BoTorch modular model with updated outcome constraints
             A, B = get_constraint_matrix(current_constraints)

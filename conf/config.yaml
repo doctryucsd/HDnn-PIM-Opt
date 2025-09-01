@@ -58,6 +58,10 @@ optimization:
   metrics_file: cifar10-NEHVI-no_constraint
   constrained: true
   threshold_schedule: static # Choices: static | linear | exponential
+  # If set, the constraint schedule reaches final targets by this iteration index
+  # (0-based, absolute across the BO loop). After this point, constraints remain fixed.
+  # Leave as null to finish at the last iteration.
+  threshold_schedule_final_iter: null
   constraints:
     accuracy: 0.3
     power: 0.3
