@@ -103,6 +103,7 @@
   values:
     - 3
     - 5
+    - 7
   value_type: int
 - name: stride_1
   type: range
@@ -130,6 +131,7 @@
   values:
     - 3
     - 5
+    - 7
   value_type: int
 - name: stride_2
   type: range
