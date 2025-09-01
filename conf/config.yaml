@@ -53,7 +53,7 @@ pretrain:
 
 optimization:
   num_trials: 10
-  num_epochs: 50
+  num_epochs: 100
   acqf: qNoisyExpectedHypervolumeImprovement
   metrics_file: cifar10-NEHVI-no_constraint
   constrained: true
@@ -61,7 +61,7 @@ optimization:
   # If set, the constraint schedule reaches final targets by this iteration index
   # (0-based, absolute across the BO loop). After this point, constraints remain fixed.
   # Leave as null to finish at the last iteration.
-  threshold_schedule_final_iter: null
+  threshold_schedule_final_iter: 69
   constraints:
     accuracy: 0.3
     power: 0.3
