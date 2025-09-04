@@ -31,7 +31,7 @@ i=0
 while [ "$i" -lt "$RUNS" ]; do
   SEED=$((START + i))
   FILE_NAME="${FILE_NAME_PREFIX}_seed${SEED}"
-  cmd="python3 -m sim optimization.constrained=${CONSTRAINT} optimization.threshold_schedule=static optimization.metrics_file=${FILE_NAME} seed=${SEED} optimization.constraints.accuracy=${ACCURACY} optimization.constraints.power=${POWER} optimization.constraints.performance=${PERFORMANCE} optimization.constraints.area=${AREA}"
+  cmd="python3 -m sim optimization.constrained=true optimization.threshold_schedule=static optimization.metrics_file=${FILE_NAME} seed=${SEED} optimization.constraints.accuracy=${ACCURACY} optimization.constraints.power=${POWER} optimization.constraints.performance=${PERFORMANCE} optimization.constraints.area=${AREA}"
   echo $cmd
   $cmd > "logs/${FILE_NAME}_seed${SEED}.log" 2>&1 &
 
