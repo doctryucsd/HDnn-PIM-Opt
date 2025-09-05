@@ -9,7 +9,7 @@ fi
 
 # Configure runs here (not via CLI)
 RUNS=5
-START=142
+START=42
 
 mkdir -p logs
 
