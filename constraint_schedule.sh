@@ -1,5 +1,5 @@
 CONSTRAINT=true
-POLICY=static # static, linear, exponential
+POLICY=exponential # static, linear, exponential
 
 if [ "$CONSTRAINT" = true ]; then
   FILE_NAME_PREFIX=cifar10_NEHVI_${POLICY}-constraint
@@ -9,7 +9,7 @@ fi
 
 # Configure runs here (not via CLI)
 RUNS=5
-START=42
+START=142
 
 mkdir -p logs
 
@@ -26,5 +26,7 @@ while [ "$i" -lt "$RUNS" ]; do
     sleep 60
   fi
 done
+
+cp outputs/*/*/*.json /cimloop-volume/
 
 wait

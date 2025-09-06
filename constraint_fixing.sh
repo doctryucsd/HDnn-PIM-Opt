@@ -41,4 +41,6 @@ while [ "$i" -lt "$RUNS" ]; do
   fi
 done
 
+cp outputs/*/*/*.json /cimloop-volume/
+
 wait
