@@ -1,4 +1,4 @@
-POLICY=low # static, low, high
+POLICY=high # static, low, high
 FILE_NAME_PREFIX=cifar10_NEHVI_${POLICY}-constraint
 
 if [ "$POLICY" = "static" ]; then
