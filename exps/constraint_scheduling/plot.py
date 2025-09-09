@@ -24,6 +24,8 @@ from plots.hv import compute_hv_series  # type: ignore
 # You can customize these for your analysis.
 DEFAULT_REF_POINT: List[float] = [0.0, 1.0, 1.0, 1.0]
 DEFAULT_CONSTRAINTS: List[float] = [0.3, 0.2, 0.2, 0.2]  # [acc_min, energy_max, timing_max, area_max]
+# For HV-vs-iteration curves: start plotting from this iteration index (0-based)
+CURVE_START_ITER: int = 10
 
 
 def read_metrics(path: str) -> Dict[str, List[float]]:
@@ -182,6 +184,81 @@ def plot_bar_with_std(
     plt.close(fig)
 
 
+def compute_hv_series_for_file(path: str, ref_point: List[float], constraints: List[float]) -> List[float]:
+    metrics = read_metrics(path)
+    series = compute_hv_series(
+        metrics=metrics,
+        ref_point=ref_point,
+        constrained=True,
+        constraints=constraints,
+    )
+    return [float(x) for x in series]
+
+
+def gather_method_hv_series(
+    dataset_dir: str, ref_point: List[float], constraints: List[float]
+) -> Dict[str, List[List[float]]]:
+    method_to_series: Dict[str, List[List[float]]] = {}
+
+    for entry in sorted(os.listdir(dataset_dir)):
+        method_path = os.path.join(dataset_dir, entry)
+        if not os.path.isdir(method_path):
+            continue
+        json_files = [
+            os.path.join(method_path, f)
+            for f in os.listdir(method_path)
+            if f.endswith(".json") and os.path.isfile(os.path.join(method_path, f))
+        ]
+        if not json_files:
+            continue
+        series_list: List[List[float]] = []
+        for jf in sorted(json_files):
+            try:
+                series_list.append(compute_hv_series_for_file(jf, ref_point, constraints))
+            except Exception as e:
+                print(f"[warn] HV series failed for {jf}: {e}")
+        if series_list:
+            method_to_series[entry] = series_list
+    return method_to_series
+
+
+def mean_std_curve(series_list: List[List[float]]) -> Tuple[np.ndarray, np.ndarray]:
+    # Start from a fixed iteration to emphasize later performance
+    sliced = [s[CURVE_START_ITER:] for s in series_list if len(s) > CURVE_START_ITER]
+    if not sliced:
+        raise ValueError("All series shorter than CURVE_START_ITER")
+    # Align to the shortest length to avoid padding artifacts
+    L = min(len(s) for s in sliced)
+    arr = np.array([s[:L] for s in sliced], dtype=float)
+    mean = np.mean(arr, axis=0)
+    std = np.std(arr, axis=0, ddof=0)
+    return mean, std
+
+
+def plot_mean_curves(
+    method_curves: Dict[str, Tuple[np.ndarray, np.ndarray]],
+    title: str,
+    out_path: str,
+    shade_std: bool = False,
+) -> None:
+    plt.rcParams.update({"font.size": 14})
+    fig, ax = plt.subplots(figsize=(10, 5))
+    for method in sorted(method_curves.keys()):
+        mean, std = method_curves[method]
+        x = np.arange(len(mean))
+        ax.plot(x, mean, label=method, linewidth=2.5)
+        if shade_std:
+            ax.fill_between(x, mean - std, mean + std, alpha=0.2)
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("Hypervolume")
+    ax.set_title(title)
+    ax.grid(axis="both", linestyle=":", alpha=0.4)
+    ax.legend(loc="best")
+    fig.tight_layout()
+    fig.savefig(out_path)
+    plt.close(fig)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Compute and plot constrained HV and eligibility rate across methods for a dataset.")
     parser.add_argument("--dataset_dir", type=str, required=True, help="Path to dataset results directory (e.g., exps/constraint_scheduling/cifar10)")
@@ -213,6 +290,17 @@ def main() -> None:
         help="Filename for the eligibility rate PDF placed under the dataset directory.",
     )
     parser.add_argument(
+        "--curve_out_name",
+        type=str,
+        default="hv_mean_curve.pdf",
+        help="Filename for the mean HV vs. iteration PDF placed under the dataset directory.",
+    )
+    parser.add_argument(
+        "--curve_shade_std",
+        action="store_true",
+        help="If set, shade ±std around the mean curves.",
+    )
+    parser.add_argument(
         "--iter",
         dest="iter_index",
         type=int,
@@ -227,6 +315,8 @@ def main() -> None:
     constraints: List[float] = args.constraints
     out_name: str = args.out_name
     rate_out_name: str = args.rate_out_name
+    curve_out_name: str = args.curve_out_name
+    curve_shade_std: bool = args.curve_shade_std
     iter_index: int = args.iter_index
 
     if not os.path.isdir(dataset_dir):
@@ -302,6 +392,21 @@ def main() -> None:
     method_rate_stats_sorted = {m: method_rate_stats[m] for m in sorted(method_rate_stats.keys())}
     plot_bar_with_std(method_rate_stats_sorted, rate_title, rate_out_path, ylabel="Eligibility Rate")
     print(f"Saved: {rate_out_path}")
+
+    # Plot mean HV vs iteration for all methods
+    method_series = gather_method_hv_series(dataset_dir, ref_point, constraints)
+    method_curves: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
+    for method, series_list in method_series.items():
+        try:
+            mean, std = mean_std_curve(series_list)
+            method_curves[method] = (mean, std)
+        except ValueError:
+            continue
+    curve_title = f"{dataset_name} Mean HV vs Iteration (constrained, from iter {CURVE_START_ITER})"
+    curve_out_path = os.path.join(dataset_dir, curve_out_name)
+    # Always plot without std shading as requested
+    plot_mean_curves(method_curves, curve_title, curve_out_path, shade_std=False)
+    print(f"Saved: {curve_out_path}")
 
 
 if __name__ == "__main__":
