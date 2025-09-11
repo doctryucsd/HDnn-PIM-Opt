@@ -1,5 +1,5 @@
 CONSTRAINT=true
-POLICY=exponential # static, linear, exponential
+POLICY=static # static, linear, exponential
 
 if [ "$CONSTRAINT" = true ]; then
   FILE_NAME_PREFIX=cifar10_NEHVI_${POLICY}-constraint
@@ -8,7 +8,7 @@ else
 fi
 
 # Configure runs here (not via CLI)
-RUNS=5
+RUNS=7
 START=142
 
 mkdir -p logs
