@@ -5,6 +5,7 @@ import json
 import os
 import sys
 from typing import Dict, List, Tuple
+import re
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -23,7 +24,7 @@ from plots.hv import compute_hv_series  # type: ignore
 # Defaults: single global threshold and ref point (minimization space)
 # You can customize these for your analysis.
 DEFAULT_REF_POINT: List[float] = [0.0, 1.0, 1.0, 1.0]
-DEFAULT_CONSTRAINTS: List[float] = [0.3, 0.2, 0.2, 0.2]  # [acc_min, energy_max, timing_max, area_max]
+DEFAULT_CONSTRAINTS: List[float] = [0.4, 0.2, 0.2, 0.2]  # [acc_min, energy_max, timing_max, area_max]
 # For HV-vs-iteration curves: start plotting from this iteration index (0-based)
 CURVE_START_ITER: int = 10
 
@@ -222,6 +223,214 @@ def gather_method_hv_series(
     return method_to_series
 
 
+def _extract_seed_from_filename(path: str) -> int | None:
+    """Extract integer seed from filename patterns like '*_seed42.json'."""
+    base = os.path.basename(path)
+    m = re.search(r"seed(\d+)", base)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return None
+
+
+def gather_seed_hv_series(
+    dataset_dir: str, ref_point: List[float], constraints: List[float]
+) -> Tuple[Dict[int, Dict[str, List[float]]], List[str]]:
+    """
+    Build mapping: seed -> { method_name -> HV series (sliced from CURVE_START_ITER) }.
+    Also return the sorted list of all method names to enable missing-method warnings.
+    """
+    seed_to_method_series: Dict[int, Dict[str, List[float]]] = {}
+    all_methods: List[str] = []
+
+    for entry in sorted(os.listdir(dataset_dir)):
+        method_path = os.path.join(dataset_dir, entry)
+        if not os.path.isdir(method_path):
+            continue
+
+        json_files = [
+            os.path.join(method_path, f)
+            for f in os.listdir(method_path)
+            if f.endswith(".json") and os.path.isfile(os.path.join(method_path, f))
+        ]
+        if not json_files:
+            continue
+        all_methods.append(entry)
+        for jf in sorted(json_files):
+            seed = _extract_seed_from_filename(jf)
+            if seed is None:
+                print(f"[warn] Could not parse seed from filename: {os.path.basename(jf)}")
+                continue
+            try:
+                series = compute_hv_series_for_file(jf, ref_point, constraints)
+                if len(series) <= CURVE_START_ITER:
+                    print(
+                        f"[warn] Series shorter than CURVE_START_ITER={CURVE_START_ITER} for {os.path.basename(jf)}; skipping"
+                    )
+                    continue
+                sliced = [float(x) for x in series[CURVE_START_ITER:]]
+                seed_to_method_series.setdefault(seed, {})[entry] = sliced
+            except Exception as e:
+                print(f"[warn] HV series failed for {jf}: {e}")
+
+    # Warn if any seed lacks some methods
+    all_methods_sorted = sorted(all_methods)
+    for seed, m2s in sorted(seed_to_method_series.items()):
+        present = set(m2s.keys())
+        missing = [m for m in all_methods_sorted if m not in present]
+        if missing:
+            print(f"[warn] Seed {seed} missing methods: {', '.join(missing)}")
+
+    return seed_to_method_series, all_methods_sorted
+
+
+def plot_per_seed_curves(
+    seed_to_method_series: Dict[int, Dict[str, List[float]]],
+    dataset_name: str,
+    out_dir: str,
+) -> None:
+    """Plot HV vs iteration for each seed, overlaying all available methods."""
+    os.makedirs(out_dir, exist_ok=True)
+    plt.rcParams.update({"font.size": 14})
+
+    for seed in sorted(seed_to_method_series.keys()):
+        m2s = seed_to_method_series[seed]
+        if not m2s:
+            continue
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        for method in sorted(m2s.keys()):
+            y = np.array(m2s[method], dtype=float)
+            x = np.arange(len(y))
+            ax.plot(x, y, label=method, linewidth=2.5)
+
+        ax.set_xlabel("Iteration (offset)")
+        ax.set_ylabel("Hypervolume")
+        ax.set_title(
+            f"{dataset_name} Seed {seed} HV vs Iteration (constrained, from iter {CURVE_START_ITER})"
+        )
+        ax.grid(axis="both", linestyle=":", alpha=0.4)
+        ax.legend(loc="best")
+        fig.tight_layout()
+
+        out_path = os.path.join(out_dir, f"hv_curve_seed_{seed}_from{CURVE_START_ITER}.pdf")
+        fig.savefig(out_path)
+        plt.close(fig)
+        print(f"Saved: {out_path}")
+
+
+def gather_method_best_metrics(dataset_dir: str) -> Dict[str, Dict[str, Tuple[float, str, int, float, float, Dict[str, float]]]]:
+    """
+    For each method directory, scan all JSON files (seeds) and report the best value for
+    each raw metric across all iterations and seeds.
+
+    Returns a mapping:
+      method -> {
+         'accuracy': (max_value, filename, iter_idx),
+         'energy':   (min_value, filename, iter_idx),
+         'timing':   (min_value, filename, iter_idx),
+         'area':     (min_value, filename, iter_idx),
+      }
+    """
+    # Returns per method -> per metric -> (best_val, filename, iter_idx, mean, std, context_at_best)
+    # where context_at_best holds the other metrics' values at that same iteration index.
+    result: Dict[str, Dict[str, Tuple[float, str, int, float, float, Dict[str, float]]]] = {}
+
+    for entry in sorted(os.listdir(dataset_dir)):
+        method_path = os.path.join(dataset_dir, entry)
+        if not os.path.isdir(method_path):
+            continue
+
+        # Track best and its context metrics for each metric
+        best_val_file_idx: Dict[str, Tuple[float, str, int]] = {
+            'accuracy': (float('-inf'), '', -1),
+            'energy':   (float('inf'),  '', -1),
+            'timing':   (float('inf'),  '', -1),
+            'area':     (float('inf'),  '', -1),
+        }
+        best_context: Dict[str, Dict[str, float]] = {
+            'accuracy': {},
+            'energy':   {},
+            'timing':   {},
+            'area':     {},
+        }
+        # Accumulate all observed values for mean/std
+        accums: Dict[str, List[float]] = {
+            'accuracy': [],
+            'energy':   [],
+            'timing':   [],
+            'area':     [],
+        }
+
+        json_files = [
+            os.path.join(method_path, f)
+            for f in os.listdir(method_path)
+            if f.endswith('.json') and os.path.isfile(os.path.join(method_path, f))
+        ]
+        if not json_files:
+            continue
+
+        for jf in sorted(json_files):
+            try:
+                metrics = read_metrics(jf)
+                for metric_name, prefer_max in (
+                    ('accuracy', True),
+                    ('energy',   False),
+                    ('timing',   False),
+                    ('area',     False),
+                ):
+                    arr = metrics.get(metric_name, [])
+                    if not arr:
+                        continue
+                    # Extend accumulator
+                    try:
+                        accums[metric_name].extend([float(v) for v in arr])
+                    except Exception:
+                        pass
+                    if prefer_max:
+                        val = float(np.max(arr))
+                        idx = int(np.argmax(arr))
+                        if val > best_val_file_idx[metric_name][0]:
+                            best_val_file_idx[metric_name] = (val, os.path.basename(jf), idx)
+                            # capture context at this iteration
+                            ctx: Dict[str, float] = {}
+                            for other in ('accuracy', 'energy', 'timing', 'area'):
+                                arr2 = metrics.get(other, [])
+                                ctx[other] = float(arr2[idx]) if idx < len(arr2) else float('nan')
+                            best_context[metric_name] = ctx
+                    else:
+                        val = float(np.min(arr))
+                        idx = int(np.argmin(arr))
+                        if val < best_val_file_idx[metric_name][0]:
+                            best_val_file_idx[metric_name] = (val, os.path.basename(jf), idx)
+                            ctx: Dict[str, float] = {}
+                            for other in ('accuracy', 'energy', 'timing', 'area'):
+                                arr2 = metrics.get(other, [])
+                                ctx[other] = float(arr2[idx]) if idx < len(arr2) else float('nan')
+                            best_context[metric_name] = ctx
+            except Exception as e:
+                print(f"[warn] Skipping metrics for {jf}: {e}")
+
+        # Attach mean/std to results
+        enriched: Dict[str, Tuple[float, str, int, float, float, Dict[str, float]]] = {}
+        for metric_name in ('accuracy', 'energy', 'timing', 'area'):
+            vals = np.array(accums[metric_name], dtype=float)
+            if vals.size:
+                mean = float(np.mean(vals))
+                std = float(np.std(vals, ddof=0))
+            else:
+                mean = 0.0
+                std = 0.0
+            bval, bfile, bidx = best_val_file_idx[metric_name]
+            enriched[metric_name] = (bval, bfile, bidx, mean, std, best_context.get(metric_name, {}))
+
+        result[entry] = enriched
+
+    return result
+
+
 def mean_std_curve(series_list: List[List[float]]) -> Tuple[np.ndarray, np.ndarray]:
     # Start from a fixed iteration to emphasize later performance
     sliced = [s[CURVE_START_ITER:] for s in series_list if len(s) > CURVE_START_ITER]
@@ -378,8 +587,12 @@ def main() -> None:
         n = len(method_rates.get(method, []))
         print(f"{method}: mean={mean:.4f}, std={std:.4f} (N={n})")
 
+    # Prepare plots output root directory under the dataset directory
+    plots_root_dir = os.path.join(dataset_dir, "plots")
+    os.makedirs(plots_root_dir, exist_ok=True)
+
     # Plot and save PDF
-    out_path = os.path.join(dataset_dir, out_name)
+    out_path = os.path.join(plots_root_dir, out_name)
     # Keep plotting order deterministic (sorted by method name)
     method_stats_sorted = {m: method_stats[m] for m in sorted(method_stats.keys())}
     method_values_sorted = {m: method_hvs[m] for m in sorted(method_stats.keys())}
@@ -388,10 +601,37 @@ def main() -> None:
 
     # Plot eligibility rate bar with std error bars
     rate_title = f"{dataset_name} Eligibility Rate"
-    rate_out_path = os.path.join(dataset_dir, rate_out_name)
+    rate_out_path = os.path.join(plots_root_dir, rate_out_name)
     method_rate_stats_sorted = {m: method_rate_stats[m] for m in sorted(method_rate_stats.keys())}
     plot_bar_with_std(method_rate_stats_sorted, rate_title, rate_out_path, ylabel="Eligibility Rate")
     print(f"Saved: {rate_out_path}")
+
+    # Print best raw metric values per method across all seeds/iterations
+    print("\nBest raw metric values across seeds (per method):")
+    best_metrics = gather_method_best_metrics(dataset_dir)
+    for method in sorted(best_metrics.keys()):
+        bm = best_metrics[method]
+        acc_v, acc_f, acc_i, acc_m, acc_s, acc_ctx = bm['accuracy']
+        eng_v, eng_f, eng_i, eng_m, eng_s, eng_ctx = bm['energy']
+        tim_v, tim_f, tim_i, tim_m, tim_s, tim_ctx = bm['timing']
+        area_v, area_f, area_i, area_m, area_s, area_ctx = bm['area']
+        print(f"{method}:")
+        print(f"  accuracy_max = {acc_v:.6f}  (file={acc_f}, iter={acc_i}) | mean={acc_m:.6f}, std={acc_s:.6f}")
+        print(
+            f"    at_iter: energy={acc_ctx.get('energy', float('nan')):.6f}, timing={acc_ctx.get('timing', float('nan')):.6f}, area={acc_ctx.get('area', float('nan')):.6f}"
+        )
+        print(f"  energy_min   = {eng_v:.6f}  (file={eng_f}, iter={eng_i}) | mean={eng_m:.6f}, std={eng_s:.6f}")
+        print(
+            f"    at_iter: accuracy={eng_ctx.get('accuracy', float('nan')):.6f}, timing={eng_ctx.get('timing', float('nan')):.6f}, area={eng_ctx.get('area', float('nan')):.6f}"
+        )
+        print(f"  timing_min   = {tim_v:.6f}  (file={tim_f}, iter={tim_i}) | mean={tim_m:.6f}, std={tim_s:.6f}")
+        print(
+            f"    at_iter: accuracy={tim_ctx.get('accuracy', float('nan')):.6f}, energy={tim_ctx.get('energy', float('nan')):.6f}, area={tim_ctx.get('area', float('nan')):.6f}"
+        )
+        print(f"  area_min     = {area_v:.6f}  (file={area_f}, iter={area_i}) | mean={area_m:.6f}, std={area_s:.6f}")
+        print(
+            f"    at_iter: accuracy={area_ctx.get('accuracy', float('nan')):.6f}, energy={area_ctx.get('energy', float('nan')):.6f}, timing={area_ctx.get('timing', float('nan')):.6f}"
+        )
 
     # Plot mean HV vs iteration for all methods
     method_series = gather_method_hv_series(dataset_dir, ref_point, constraints)
@@ -403,10 +643,15 @@ def main() -> None:
         except ValueError:
             continue
     curve_title = f"{dataset_name} Mean HV vs Iteration (constrained, from iter {CURVE_START_ITER})"
-    curve_out_path = os.path.join(dataset_dir, curve_out_name)
+    curve_out_path = os.path.join(plots_root_dir, curve_out_name)
     # Always plot without std shading as requested
     plot_mean_curves(method_curves, curve_title, curve_out_path, shade_std=False)
     print(f"Saved: {curve_out_path}")
+
+    # Always generate per-seed HV vs iteration plots (overlaying all methods per seed)
+    seed_to_method_series, _all_methods = gather_seed_hv_series(dataset_dir, ref_point, constraints)
+    per_seed_dir = os.path.join(plots_root_dir, "seed_curves")
+    plot_per_seed_curves(seed_to_method_series, dataset_name, per_seed_dir)
 
 
 if __name__ == "__main__":

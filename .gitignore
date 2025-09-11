@@ -10,3 +10,4 @@ build/
 # *.png
 dbg*.txt
 logs/
+plots/
