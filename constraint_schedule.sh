@@ -1,4 +1,4 @@
-CONSTRAINT=true
+CONSTRAINT=false
 POLICY=exponential # static, linear, exponential
 
 if [ "$CONSTRAINT" = true ]; then
@@ -8,7 +8,7 @@ else
 fi
 
 # Configure runs here (not via CLI)
-RUNS=5
+RUNS=7
 START=142
 
 mkdir -p logs
