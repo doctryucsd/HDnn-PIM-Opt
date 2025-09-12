@@ -31,6 +31,7 @@ run:
 	echo "All $(N) sim processes completed."
 
 clean:
-	@echo "Cleaning outputs/ and $(DRIVE)/dbg*.txt ..."
+	@echo "Cleaning outputs/ and $(DRIVE)/dbg*.txt ... AND logs/*.log"
 	-@rm -rf outputs/
 	-@rm -f "$(DRIVE)"/dbg*.txt
+	-@rm logs/*.log
