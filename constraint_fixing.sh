@@ -41,6 +41,7 @@ while [ "$i" -lt "$RUNS" ]; do
   fi
 done
 
-cp outputs/*/*/*.json /cimloop-volume/
-
+# Ensure all background runs finish before copying results
 wait
+
+cp outputs/*/*/*.json /cimloop-volume/
