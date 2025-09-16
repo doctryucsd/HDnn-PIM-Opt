@@ -2,9 +2,9 @@ CONSTRAINT=true
 POLICY=linear # static, linear, exponential
 
 if [ "$CONSTRAINT" = true ]; then
-  FILE_NAME_PREFIX=cifar10_NEHVI_${POLICY}-constraint
+  FILE_NAME_PREFIX=cifar10_EHVI_${POLICY}-constraint
 else
-  FILE_NAME_PREFIX=cifar10_NEHVI_no-constraint
+  FILE_NAME_PREFIX=cifar10_EHVI_no-constraint
 fi
 
 # Configure runs here (not via CLI)
