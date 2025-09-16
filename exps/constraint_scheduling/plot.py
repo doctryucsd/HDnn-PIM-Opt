@@ -9,6 +9,8 @@ import re
 
 import numpy as np
 import matplotlib.pyplot as plt
+import hashlib
+import matplotlib.patheffects as pe
 
 
 # Ensure repo root is importable to reach plots.hv
@@ -24,9 +26,40 @@ from plots.hv import compute_hv_series  # type: ignore
 # Defaults: single global threshold and ref point (minimization space)
 # You can customize these for your analysis.
 DEFAULT_REF_POINT: List[float] = [0.0, 1.0, 1.0, 1.0]
-DEFAULT_CONSTRAINTS: List[float] = [0.4, 0.2, 0.2, 0.2]  # [acc_min, energy_max, timing_max, area_max]
+DEFAULT_CONSTRAINTS: List[float] = [0.4, 0.1, 0.1, 0.2]  # [acc_min, energy_max, timing_max, area_max]
 # For HV-vs-iteration curves: start plotting from this iteration index (0-based)
 CURVE_START_ITER: int = 10
+
+# Color-blind friendly palette (Okabe–Ito)
+COLORBLIND_PALETTE: List[str] = [
+    "#0072B2",  # blue
+    "#E69F00",  # orange
+    "#009E73",  # green
+    "#D55E00",  # vermillion
+    "#CC79A7",  # reddish purple
+    "#F0E442",  # yellow
+    "#56B4E9",  # sky blue
+    "#000000",  # black
+]
+
+# Additional distinct styles to reduce ambiguity when lines overlap
+LINESTYLES: List[str] = ["-", "--", "-.", ":"]
+MARKERS: List[str] = ["o", "s", "^", "v", "D", "P", "X", "*", "h"]
+
+
+def _style_for_name(name: str) -> Tuple[str, str, str, int]:
+    """Deterministically assign (color, linestyle, marker, markevery) from a name.
+
+    Uses a stable hash so the same method keeps the same style across runs.
+    markevery is chosen to stagger marker positions across methods to avoid
+    perfect overlap of markers.
+    """
+    h = int(hashlib.md5(name.encode("utf-8")).hexdigest(), 16)
+    color = COLORBLIND_PALETTE[h % len(COLORBLIND_PALETTE)]
+    linestyle = LINESTYLES[(h // len(COLORBLIND_PALETTE)) % len(LINESTYLES)]
+    marker = MARKERS[(h // (len(COLORBLIND_PALETTE) * len(LINESTYLES))) % len(MARKERS)]
+    markevery = 5 + (h % 5)  # place markers every 5..9 points with per-name offset
+    return color, linestyle, marker, markevery
 
 
 def read_metrics(path: str) -> Dict[str, List[float]]:
@@ -78,6 +111,7 @@ def gather_method_hvs(
     ref_point: List[float],
     constraints: List[float],
     iter_index: int,
+    skip_seeds: set[int] | None = None,
 ) -> Tuple[Dict[str, List[float]], Dict[str, Tuple[float, str]], Dict[str, List[float]]]:
     method_to_hvs: Dict[str, List[float]] = {}
     method_to_best: Dict[str, Tuple[float, str]] = {}
@@ -101,6 +135,11 @@ def gather_method_hvs(
         best_val: float = float("-inf")
         best_file: str = ""
         for jf in sorted(json_files):
+            # Optionally skip certain seeds based on filename pattern
+            if skip_seeds:
+                seed = _extract_seed_from_filename(jf)
+                if seed is not None and seed in skip_seeds:
+                    continue
             try:
                 hv_val = compute_hv_at_iter(jf, ref_point, constraints, iter_index)
                 final_hvs.append(hv_val)
@@ -124,6 +163,7 @@ def plot_bar_with_error(
     method_values: Dict[str, List[float]],
     title: str,
     out_path: str,
+    ylabel: str = "Hypervolume",
 ) -> None:
     plt.rcParams.update({"font.size": 14})
     methods = list(method_stats.keys())
@@ -145,7 +185,7 @@ def plot_bar_with_error(
 
     ax.set_xticks(x)
     ax.set_xticklabels(methods, rotation=30, ha="right")
-    ax.set_ylabel("Hypervolume")
+    ax.set_ylabel(ylabel)
     ax.set_title(title)
     ax.grid(axis="y", linestyle=":", alpha=0.4)
 
@@ -197,7 +237,7 @@ def compute_hv_series_for_file(path: str, ref_point: List[float], constraints: L
 
 
 def gather_method_hv_series(
-    dataset_dir: str, ref_point: List[float], constraints: List[float]
+    dataset_dir: str, ref_point: List[float], constraints: List[float], skip_seeds: set[int] | None = None
 ) -> Dict[str, List[List[float]]]:
     method_to_series: Dict[str, List[List[float]]] = {}
 
@@ -214,6 +254,10 @@ def gather_method_hv_series(
             continue
         series_list: List[List[float]] = []
         for jf in sorted(json_files):
+            if skip_seeds:
+                seed = _extract_seed_from_filename(jf)
+                if seed is not None and seed in skip_seeds:
+                    continue
             try:
                 series_list.append(compute_hv_series_for_file(jf, ref_point, constraints))
             except Exception as e:
@@ -236,7 +280,7 @@ def _extract_seed_from_filename(path: str) -> int | None:
 
 
 def gather_seed_hv_series(
-    dataset_dir: str, ref_point: List[float], constraints: List[float]
+    dataset_dir: str, ref_point: List[float], constraints: List[float], skip_seeds: set[int] | None = None
 ) -> Tuple[Dict[int, Dict[str, List[float]]], List[str]]:
     """
     Build mapping: seed -> { method_name -> HV series (sliced from CURVE_START_ITER) }.
@@ -262,6 +306,8 @@ def gather_seed_hv_series(
             seed = _extract_seed_from_filename(jf)
             if seed is None:
                 print(f"[warn] Could not parse seed from filename: {os.path.basename(jf)}")
+                continue
+            if skip_seeds and seed in skip_seeds:
                 continue
             try:
                 series = compute_hv_series_for_file(jf, ref_point, constraints)
@@ -304,7 +350,25 @@ def plot_per_seed_curves(
         for method in sorted(m2s.keys()):
             y = np.array(m2s[method], dtype=float)
             x = np.arange(len(y))
-            ax.plot(x, y, label=method, linewidth=2.5)
+            color, linestyle, marker, markevery = _style_for_name(method)
+            line, = ax.plot(
+                x,
+                y,
+                label=method,
+                linewidth=2.5,
+                color=color,
+                linestyle=linestyle,
+                marker=marker,
+                markevery=markevery,
+                markerfacecolor=color,
+                markeredgecolor="white",
+                markeredgewidth=0.9,
+                alpha=0.95,
+            )
+            line.set_path_effects([
+                pe.Stroke(linewidth=4, foreground="white", alpha=0.8),
+                pe.Normal(),
+            ])
 
         ax.set_xlabel("Iteration (offset)")
         ax.set_ylabel("Hypervolume")
@@ -321,7 +385,7 @@ def plot_per_seed_curves(
         print(f"Saved: {out_path}")
 
 
-def gather_method_best_metrics(dataset_dir: str) -> Dict[str, Dict[str, Tuple[float, str, int, float, float, Dict[str, float]]]]:
+def gather_method_best_metrics(dataset_dir: str, skip_seeds: set[int] | None = None) -> Dict[str, Dict[str, Tuple[float, str, int, float, float, Dict[str, float]]]]:
     """
     For each method directory, scan all JSON files (seeds) and report the best value for
     each raw metric across all iterations and seeds.
@@ -373,6 +437,10 @@ def gather_method_best_metrics(dataset_dir: str) -> Dict[str, Dict[str, Tuple[fl
             continue
 
         for jf in sorted(json_files):
+            if skip_seeds:
+                seed = _extract_seed_from_filename(jf)
+                if seed is not None and seed in skip_seeds:
+                    continue
             try:
                 metrics = read_metrics(jf)
                 for metric_name, prefer_max in (
@@ -455,9 +523,27 @@ def plot_mean_curves(
     for method in sorted(method_curves.keys()):
         mean, std = method_curves[method]
         x = np.arange(len(mean))
-        ax.plot(x, mean, label=method, linewidth=2.5)
+        color, linestyle, marker, markevery = _style_for_name(method)
+        line, = ax.plot(
+            x,
+            mean,
+            label=method,
+            linewidth=2.5,
+            color=color,
+            linestyle=linestyle,
+            marker=marker,
+            markevery=markevery,
+            markerfacecolor=color,
+            markeredgecolor="white",
+            markeredgewidth=0.9,
+            alpha=0.95,
+        )
+        line.set_path_effects([
+            pe.Stroke(linewidth=4, foreground="white", alpha=0.8),
+            pe.Normal(),
+        ])
         if shade_std:
-            ax.fill_between(x, mean - std, mean + std, alpha=0.2)
+            ax.fill_between(x, mean - std, mean + std, alpha=0.15, color=color)
     ax.set_xlabel("Iteration")
     ax.set_ylabel("Hypervolume")
     ax.set_title(title)
@@ -516,6 +602,28 @@ def main() -> None:
         default=-1,
         help="Iteration index to consider (0-based). Use -1 for final iteration.",
     )
+    parser.add_argument(
+        "--ignore_seeds",
+        type=int,
+        nargs="+",
+        default=None,
+        help="One or more integer seeds to ignore (matched from filenames like '*seed42*.json').",
+    )
+    parser.add_argument(
+        "--no_hv_bar",
+        action="store_true",
+        help="If set, do not generate the HV bar plot.",
+    )
+    parser.add_argument(
+        "--no_rate_bar",
+        action="store_true",
+        help="If set, do not generate the eligibility rate bar plot.",
+    )
+    parser.add_argument(
+        "--no_bars",
+        action="store_true",
+        help="If set, disable both HV and eligibility rate bar plots.",
+    )
 
     args = parser.parse_args()
 
@@ -527,6 +635,10 @@ def main() -> None:
     curve_out_name: str = args.curve_out_name
     curve_shade_std: bool = args.curve_shade_std
     iter_index: int = args.iter_index
+    skip_seeds: set[int] = set(args.ignore_seeds or [])
+    # Convenience toggles
+    no_hv_bar = bool(args.no_hv_bar or args.no_bars)
+    no_rate_bar = bool(args.no_rate_bar or args.no_bars)
 
     if not os.path.isdir(dataset_dir):
         raise FileNotFoundError(f"Dataset directory not found: {dataset_dir}")
@@ -541,7 +653,12 @@ def main() -> None:
         else:
             title = f"{dataset_name} HV (iter {iter_index}, constrained)"
 
-    method_hvs, method_best, method_rates = gather_method_hvs(dataset_dir, ref_point, constraints, iter_index)
+    if skip_seeds:
+        print(f"Ignoring seeds: {sorted(skip_seeds)}")
+
+    method_hvs, method_best, method_rates = gather_method_hvs(
+        dataset_dir, ref_point, constraints, iter_index, skip_seeds=skip_seeds or None
+    )
     if not method_hvs:
         print(f"No method results found in {dataset_dir}")
         return
@@ -591,24 +708,37 @@ def main() -> None:
     plots_root_dir = os.path.join(dataset_dir, "plots")
     os.makedirs(plots_root_dir, exist_ok=True)
 
-    # Plot and save PDF
-    out_path = os.path.join(plots_root_dir, out_name)
-    # Keep plotting order deterministic (sorted by method name)
-    method_stats_sorted = {m: method_stats[m] for m in sorted(method_stats.keys())}
-    method_values_sorted = {m: method_hvs[m] for m in sorted(method_stats.keys())}
-    plot_bar_with_error(method_stats_sorted, method_values_sorted, title, out_path)
-    print(f"\nSaved: {out_path}")
+    # Plot and save HV bar (unless disabled)
+    if not no_hv_bar:
+        out_path = os.path.join(plots_root_dir, out_name)
+        # Keep plotting order deterministic (sorted by method name)
+        method_stats_sorted = {m: method_stats[m] for m in sorted(method_stats.keys())}
+        method_values_sorted = {m: method_hvs[m] for m in sorted(method_stats.keys())}
+        plot_bar_with_error(method_stats_sorted, method_values_sorted, title, out_path)
+        print(f"\nSaved: {out_path}")
+    else:
+        print("\nSkipping HV bar plot (--no_hv_bar/--no_bars)")
 
-    # Plot eligibility rate bar with std error bars
-    rate_title = f"{dataset_name} Eligibility Rate"
-    rate_out_path = os.path.join(plots_root_dir, rate_out_name)
-    method_rate_stats_sorted = {m: method_rate_stats[m] for m in sorted(method_rate_stats.keys())}
-    plot_bar_with_std(method_rate_stats_sorted, rate_title, rate_out_path, ylabel="Eligibility Rate")
-    print(f"Saved: {rate_out_path}")
+    # Plot eligibility rate bar with range (unless disabled)
+    if not no_rate_bar:
+        rate_title = f"{dataset_name} Eligibility Rate"
+        rate_out_path = os.path.join(plots_root_dir, rate_out_name)
+        method_rate_stats_sorted = {m: method_rate_stats[m] for m in sorted(method_rate_stats.keys())}
+        method_rate_values_sorted = {m: method_rates[m] for m in sorted(method_rate_stats.keys())}
+        plot_bar_with_error(
+            method_rate_stats_sorted,
+            method_rate_values_sorted,
+            rate_title,
+            rate_out_path,
+            ylabel="Eligibility Rate",
+        )
+        print(f"Saved: {rate_out_path}")
+    else:
+        print("Skipping eligibility rate bar plot (--no_rate_bar/--no_bars)")
 
     # Print best raw metric values per method across all seeds/iterations
     print("\nBest raw metric values across seeds (per method):")
-    best_metrics = gather_method_best_metrics(dataset_dir)
+    best_metrics = gather_method_best_metrics(dataset_dir, skip_seeds=skip_seeds or None)
     for method in sorted(best_metrics.keys()):
         bm = best_metrics[method]
         acc_v, acc_f, acc_i, acc_m, acc_s, acc_ctx = bm['accuracy']
@@ -634,7 +764,7 @@ def main() -> None:
         )
 
     # Plot mean HV vs iteration for all methods
-    method_series = gather_method_hv_series(dataset_dir, ref_point, constraints)
+    method_series = gather_method_hv_series(dataset_dir, ref_point, constraints, skip_seeds=skip_seeds or None)
     method_curves: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
     for method, series_list in method_series.items():
         try:
@@ -649,7 +779,7 @@ def main() -> None:
     print(f"Saved: {curve_out_path}")
 
     # Always generate per-seed HV vs iteration plots (overlaying all methods per seed)
-    seed_to_method_series, _all_methods = gather_seed_hv_series(dataset_dir, ref_point, constraints)
+    seed_to_method_series, _all_methods = gather_seed_hv_series(dataset_dir, ref_point, constraints, skip_seeds=skip_seeds or None)
     per_seed_dir = os.path.join(plots_root_dir, "seed_curves")
     plot_per_seed_curves(seed_to_method_series, dataset_name, per_seed_dir)
 
