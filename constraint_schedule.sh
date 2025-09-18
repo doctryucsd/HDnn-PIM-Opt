@@ -1,5 +1,5 @@
 CONSTRAINT=true
-POLICY=linear # static, linear, exponential
+POLICY=static # static, linear, exponential
 
 if [ "$CONSTRAINT" = true ]; then
   FILE_NAME_PREFIX=cifar10_EHVI_${POLICY}-constraint
