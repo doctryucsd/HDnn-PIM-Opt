@@ -112,6 +112,7 @@ def gather_method_hvs(
     constraints: List[float],
     iter_index: int,
     skip_seeds: set[int] | None = None,
+    skip_methods: set[str] | None = None,
 ) -> Tuple[Dict[str, List[float]], Dict[str, Tuple[float, str]], Dict[str, List[float]]]:
     method_to_hvs: Dict[str, List[float]] = {}
     method_to_best: Dict[str, Tuple[float, str]] = {}
@@ -120,6 +121,8 @@ def gather_method_hvs(
     for entry in sorted(os.listdir(dataset_dir)):
         method_path = os.path.join(dataset_dir, entry)
         if not os.path.isdir(method_path):
+            continue
+        if skip_methods and entry in skip_methods:
             continue
 
         # Collect all JSON files for this method (one per seed)
@@ -164,6 +167,7 @@ def plot_bar_with_error(
     title: str,
     out_path: str,
     ylabel: str = "Hypervolume",
+    show_error: bool = True,
 ) -> None:
     plt.rcParams.update({"font.size": 14})
     methods = list(method_stats.keys())
@@ -181,7 +185,10 @@ def plot_bar_with_error(
 
     fig, ax = plt.subplots(figsize=(10, 5))
     x = np.arange(len(methods))
-    bars = ax.bar(x, means, yerr=np.vstack([yerr_lower, yerr_upper]), capsize=6, alpha=0.9)
+    if show_error:
+        ax.bar(x, means, yerr=np.vstack([yerr_lower, yerr_upper]), capsize=6, alpha=0.9)
+    else:
+        ax.bar(x, means, alpha=0.9)
 
     ax.set_xticks(x)
     ax.set_xticklabels(methods, rotation=30, ha="right")
@@ -237,13 +244,19 @@ def compute_hv_series_for_file(path: str, ref_point: List[float], constraints: L
 
 
 def gather_method_hv_series(
-    dataset_dir: str, ref_point: List[float], constraints: List[float], skip_seeds: set[int] | None = None
+    dataset_dir: str,
+    ref_point: List[float],
+    constraints: List[float],
+    skip_seeds: set[int] | None = None,
+    skip_methods: set[str] | None = None,
 ) -> Dict[str, List[List[float]]]:
     method_to_series: Dict[str, List[List[float]]] = {}
 
     for entry in sorted(os.listdir(dataset_dir)):
         method_path = os.path.join(dataset_dir, entry)
         if not os.path.isdir(method_path):
+            continue
+        if skip_methods and entry in skip_methods:
             continue
         json_files = [
             os.path.join(method_path, f)
@@ -280,7 +293,11 @@ def _extract_seed_from_filename(path: str) -> int | None:
 
 
 def gather_seed_hv_series(
-    dataset_dir: str, ref_point: List[float], constraints: List[float], skip_seeds: set[int] | None = None
+    dataset_dir: str,
+    ref_point: List[float],
+    constraints: List[float],
+    skip_seeds: set[int] | None = None,
+    skip_methods: set[str] | None = None,
 ) -> Tuple[Dict[int, Dict[str, List[float]]], List[str]]:
     """
     Build mapping: seed -> { method_name -> HV series (sliced from CURVE_START_ITER) }.
@@ -292,6 +309,8 @@ def gather_seed_hv_series(
     for entry in sorted(os.listdir(dataset_dir)):
         method_path = os.path.join(dataset_dir, entry)
         if not os.path.isdir(method_path):
+            continue
+        if skip_methods and entry in skip_methods:
             continue
 
         json_files = [
@@ -385,7 +404,11 @@ def plot_per_seed_curves(
         print(f"Saved: {out_path}")
 
 
-def gather_method_best_metrics(dataset_dir: str, skip_seeds: set[int] | None = None) -> Dict[str, Dict[str, Tuple[float, str, int, float, float, Dict[str, float]]]]:
+def gather_method_best_metrics(
+    dataset_dir: str,
+    skip_seeds: set[int] | None = None,
+    skip_methods: set[str] | None = None,
+) -> Dict[str, Dict[str, Tuple[float, str, int, float, float, Dict[str, float]]]]:
     """
     For each method directory, scan all JSON files (seeds) and report the best value for
     each raw metric across all iterations and seeds.
@@ -405,6 +428,8 @@ def gather_method_best_metrics(dataset_dir: str, skip_seeds: set[int] | None = N
     for entry in sorted(os.listdir(dataset_dir)):
         method_path = os.path.join(dataset_dir, entry)
         if not os.path.isdir(method_path):
+            continue
+        if skip_methods and entry in skip_methods:
             continue
 
         # Track best and its context metrics for each metric
@@ -610,6 +635,13 @@ def main() -> None:
         help="One or more integer seeds to ignore (matched from filenames like '*seed42*.json').",
     )
     parser.add_argument(
+        "--ignore_methods",
+        type=str,
+        nargs="+",
+        default=None,
+        help="One or more method directory names to ignore (exact names under dataset_dir).",
+    )
+    parser.add_argument(
         "--no_hv_bar",
         action="store_true",
         help="If set, do not generate the HV bar plot.",
@@ -620,9 +652,15 @@ def main() -> None:
         help="If set, do not generate the eligibility rate bar plot.",
     )
     parser.add_argument(
+        "--no_error_bars",
+        action="store_true",
+        help="Hide error bars (ranges) in HV and eligibility bar charts.",
+    )
+    # Deprecated alias retained for backward-compatibility: interpret as no error bars
+    parser.add_argument(
         "--no_bars",
         action="store_true",
-        help="If set, disable both HV and eligibility rate bar plots.",
+        help="[Deprecated] Same as --no_error_bars: hide error bars (ranges).",
     )
 
     args = parser.parse_args()
@@ -636,9 +674,11 @@ def main() -> None:
     curve_shade_std: bool = args.curve_shade_std
     iter_index: int = args.iter_index
     skip_seeds: set[int] = set(args.ignore_seeds or [])
+    skip_methods: set[str] = set(args.ignore_methods or [])
     # Convenience toggles
-    no_hv_bar = bool(args.no_hv_bar or args.no_bars)
-    no_rate_bar = bool(args.no_rate_bar or args.no_bars)
+    no_hv_bar = bool(args.no_hv_bar)
+    no_rate_bar = bool(args.no_rate_bar)
+    hide_error_bars = bool(args.no_error_bars or args.no_bars)
 
     if not os.path.isdir(dataset_dir):
         raise FileNotFoundError(f"Dataset directory not found: {dataset_dir}")
@@ -655,9 +695,18 @@ def main() -> None:
 
     if skip_seeds:
         print(f"Ignoring seeds: {sorted(skip_seeds)}")
+    if skip_methods:
+        print(f"Ignoring methods: {sorted(skip_methods)}")
+    if args.no_bars and not args.no_error_bars:
+        print("[warn] --no_bars is deprecated; use --no_error_bars. Interpreting as --no_error_bars.")
 
     method_hvs, method_best, method_rates = gather_method_hvs(
-        dataset_dir, ref_point, constraints, iter_index, skip_seeds=skip_seeds or None
+        dataset_dir,
+        ref_point,
+        constraints,
+        iter_index,
+        skip_seeds=skip_seeds or None,
+        skip_methods=skip_methods or None,
     )
     if not method_hvs:
         print(f"No method results found in {dataset_dir}")
@@ -714,10 +763,16 @@ def main() -> None:
         # Keep plotting order deterministic (sorted by method name)
         method_stats_sorted = {m: method_stats[m] for m in sorted(method_stats.keys())}
         method_values_sorted = {m: method_hvs[m] for m in sorted(method_stats.keys())}
-        plot_bar_with_error(method_stats_sorted, method_values_sorted, title, out_path)
+        plot_bar_with_error(
+            method_stats_sorted,
+            method_values_sorted,
+            title,
+            out_path,
+            show_error=(not hide_error_bars),
+        )
         print(f"\nSaved: {out_path}")
     else:
-        print("\nSkipping HV bar plot (--no_hv_bar/--no_bars)")
+        print("\nSkipping HV bar plot (--no_hv_bar)")
 
     # Plot eligibility rate bar with range (unless disabled)
     if not no_rate_bar:
@@ -731,14 +786,17 @@ def main() -> None:
             rate_title,
             rate_out_path,
             ylabel="Eligibility Rate",
+            show_error=(not hide_error_bars),
         )
         print(f"Saved: {rate_out_path}")
     else:
-        print("Skipping eligibility rate bar plot (--no_rate_bar/--no_bars)")
+        print("Skipping eligibility rate bar plot (--no_rate_bar)")
 
     # Print best raw metric values per method across all seeds/iterations
     print("\nBest raw metric values across seeds (per method):")
-    best_metrics = gather_method_best_metrics(dataset_dir, skip_seeds=skip_seeds or None)
+    best_metrics = gather_method_best_metrics(
+        dataset_dir, skip_seeds=skip_seeds or None, skip_methods=skip_methods or None
+    )
     for method in sorted(best_metrics.keys()):
         bm = best_metrics[method]
         acc_v, acc_f, acc_i, acc_m, acc_s, acc_ctx = bm['accuracy']
@@ -764,7 +822,9 @@ def main() -> None:
         )
 
     # Plot mean HV vs iteration for all methods
-    method_series = gather_method_hv_series(dataset_dir, ref_point, constraints, skip_seeds=skip_seeds or None)
+    method_series = gather_method_hv_series(
+        dataset_dir, ref_point, constraints, skip_seeds=skip_seeds or None, skip_methods=skip_methods or None
+    )
     method_curves: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
     for method, series_list in method_series.items():
         try:
@@ -779,7 +839,9 @@ def main() -> None:
     print(f"Saved: {curve_out_path}")
 
     # Always generate per-seed HV vs iteration plots (overlaying all methods per seed)
-    seed_to_method_series, _all_methods = gather_seed_hv_series(dataset_dir, ref_point, constraints, skip_seeds=skip_seeds or None)
+    seed_to_method_series, _all_methods = gather_seed_hv_series(
+        dataset_dir, ref_point, constraints, skip_seeds=skip_seeds or None, skip_methods=skip_methods or None
+    )
     per_seed_dir = os.path.join(plots_root_dir, "seed_curves")
     plot_per_seed_curves(seed_to_method_series, dataset_name, per_seed_dir)
 

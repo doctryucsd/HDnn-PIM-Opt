@@ -218,37 +218,30 @@ def optimization(args: DictConfig) -> None:
     # BO loop
     num_epochs: int = args["optimization"]["num_epochs"]
     for iter in tqdm(range(num_epochs)):
-        # Decide generation strategy and current constraints
-        if constrained and iter >= num_trials:
-            # Scheduled constraints over the remaining iterations
-            step_idx = iter - num_trials
-            # Use scheduler's configured total steps (derived from schedule_final_iter)
-            current_constraints = scheduler.get(step_idx, None)  # type: ignore
-
-            # Create a fresh BoTorch modular model with updated outcome constraints
-            A, B = get_constraint_matrix(current_constraints)
-            model = Models.BOTORCH_MODULAR(
-                experiment=cli.experiment,
-                data=cli.experiment.fetch_data(),
-                botorch_acqf_class=botorch_acqf_class,
-                acquisition_options={
-                    "outcome_constraints": (A, B),
-                },
-                torch_device=torch.device("cpu"),
-            )
-            gr = model.gen(1)
-            # Ax 0.2+/0.3+: access parameters via arms
-            param = gr.arms[0].parameters
-            _, idx = cli.attach_trial(param)  # type: ignore
-        else:
-            # Sobol phase or unconstrained: pure random/Sobol generation
+        if iter < num_trials:
             model = Models.SOBOL(
                 experiment=cli.experiment,
                 data=cli.experiment.fetch_data(),
             )
-            gr = model.gen(1)
-            param = gr.arms[0].parameters
-            _, idx = cli.attach_trial(param)  # type: ignore
+        else:
+            acquisition_options = None
+            if constrained:
+                step_idx = iter - num_trials
+                current_constraints = scheduler.get(step_idx, None)  # type: ignore
+                A, B = get_constraint_matrix(current_constraints)
+                acquisition_options = {"outcome_constraints": (A, B)}
+
+            model = Models.BOTORCH_MODULAR(
+                experiment=cli.experiment,
+                data=cli.experiment.fetch_data(),
+                botorch_acqf_class=botorch_acqf_class,
+                acquisition_options=acquisition_options,
+                torch_device=torch.device("cpu"),
+            )
+
+        gr = model.gen(1)
+        param = gr.arms[0].parameters
+        _, idx = cli.attach_trial(param)  # type: ignore
 
         evals = evaluator.evaluate([param], logger)
 
