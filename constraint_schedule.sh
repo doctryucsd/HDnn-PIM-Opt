@@ -10,9 +10,9 @@ elif [ "$ACQF" = "qNoisyExpectedHypervolumeImprovement" ]; then
 fi
 
 if [ "$CONSTRAINT" = true ]; then
-  FILE_NAME_PREFIX=${DATASET}_${ACQF}_${POLICY}-constraint
+  FILE_NAME_PREFIX=${DATASET}_${METHOD}_${POLICY}-constraint
 else
-  FILE_NAME_PREFIX=${DATASET}_${ACQF}_no-constraint
+  FILE_NAME_PREFIX=${DATASET}_${METHOD}_no-constraint
 fi
 
 # Configure runs here (not via CLI)
@@ -25,7 +25,7 @@ i=0
 while [ "$i" -lt "$RUNS" ]; do
   SEED=$((START + i))
   FILE_NAME="${FILE_NAME_PREFIX}_seed${SEED}"
-  cmd="python3 -m sim optimization.constrained=${CONSTRAINT} optimization.threshold_schedule=${POLICY} optimization.metrics_file=${FILE_NAME} seed=${SEED}"
+  cmd="python3 -m sim optimization.constrained=${CONSTRAINT} optimization.threshold_schedule=${POLICY} optimization.metrics_file=${FILE_NAME} seed=${SEED} optimization.acqf=${ACQF}"
   echo $cmd
   $cmd > "logs/${FILE_NAME}_seed${SEED}.log" 2>&1 &
 
