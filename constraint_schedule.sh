@@ -1,15 +1,23 @@
-CONSTRAINT=false
-POLICY=static # static, linear, exponential
+: "${CONSTRAINT:=false}"
+: "${POLICY:=static}" # static, linear
+: "${ACQF:=qExpectedHypervolumeImprovement}" # qExpectedHypervolumeImprovement, qNoisyExpectedHypervolumeImprovement
+: "${DATASET:=cifar10}"
+
+if [ "$ACQF" = "qExpectedHypervolumeImprovement" ]; then
+  METHOD=EHVI
+elif [ "$ACQF" = "qNoisyExpectedHypervolumeImprovement" ]; then
+  METHOD=NEHVI
+fi
 
 if [ "$CONSTRAINT" = true ]; then
-  FILE_NAME_PREFIX=cifar10_EHVI_${POLICY}-constraint
+  FILE_NAME_PREFIX=${DATASET}_${ACQF}_${POLICY}-constraint
 else
-  FILE_NAME_PREFIX=cifar10_EHVI_no-constraint
+  FILE_NAME_PREFIX=${DATASET}_${ACQF}_no-constraint
 fi
 
 # Configure runs here (not via CLI)
-RUNS=7
-START=142
+: "${RUNS:=7}"
+: "${START:=142}"
 
 mkdir -p logs
 

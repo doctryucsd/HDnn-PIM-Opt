@@ -198,8 +198,12 @@ def plot_bar_with_error(
 
     # Shrink the bottom part: zoom y-axis around min..max with a small padding
     if means:
-        lower_candidates = [float(np.min(method_values[m])) for m in methods]
-        upper_candidates = [float(np.max(method_values[m])) for m in methods]
+        if show_error:
+            lower_candidates = [float(np.min(method_values[m])) for m in methods]
+            upper_candidates = [float(np.max(method_values[m])) for m in methods]
+        else:
+            lower_candidates = [float(mean) for mean in means]
+            upper_candidates = [float(mean) for mean in means]
         y_low = float(np.min(lower_candidates))
         y_high = float(np.max(upper_candidates))
         rng = max(y_high - y_low, 1e-6)
