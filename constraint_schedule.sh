@@ -1,4 +1,4 @@
-CONSTRAINT=true
+CONSTRAINT=false
 POLICY=static # static, linear, exponential
 
 if [ "$CONSTRAINT" = true ]; then
