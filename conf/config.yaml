@@ -54,7 +54,7 @@ pretrain:
 optimization:
   num_trials: 10
   num_epochs: 50
-  acqf: qExpectedHypervolumeImprovement
+  acqf: qNoisyExpectedHypervolumeImprovement
   metrics_file: cifar10-NEHVI-no_constraint
   constrained: true
   threshold_schedule: static # Choices: static | linear | exponential
