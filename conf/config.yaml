@@ -19,7 +19,7 @@ flow:
   # - data_collect
 
 data:
-  dataset: cifar10
+  dataset: fashion_mnist
   train_batch_size: 512
   test_batch_size: 16
   num_workers: 0
@@ -28,9 +28,9 @@ data:
 training:
   devices: 
     - cuda:0
-  cnn_epochs: 30 # mnist: 10, cifar10: 30
-  cnn_lr: 0.01 # mnist: 0.05, cifar10: 0.01
-  hd_epochs: 15 # mnist: 10, cifar10: 15
+  cnn_epochs: 10 # mnist: 10, cifar10: 30
+  cnn_lr: 0.05 # mnist: 0.05, cifar10: 0.01
+  hd_epochs: 10 # mnist: 10, cifar10: 15
   hd_lr: 1.0
   num_tests: 5
 
@@ -63,7 +63,7 @@ optimization:
   # Leave as null to finish at the last iteration.
   threshold_schedule_final_iter: 39
   constraints:
-    accuracy: 0.4
+    accuracy: 0.85
     power: 0.1
     performance: 0.1
     area: 0.2

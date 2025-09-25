@@ -11,7 +11,7 @@ i=0
 while [ "$i" -lt "$RUNS" ]; do
   SEED=$((START + i))
   FILE_NAME="${FILE_NAME_PREFIX}_seed${SEED}"
-  cmd="python3 -m sim optimization.metrics_file=${FILE_NAME} seed=${SEED} optimization.num_trials=10"
+  cmd="python3 -m sim optimization.metrics_file=${FILE_NAME} seed=${SEED} optimization.num_trials=50"
   echo $cmd
   $cmd > "logs/${FILE_NAME}_seed${SEED}.log" 2>&1 &
 
