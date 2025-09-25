@@ -19,7 +19,7 @@ flow:
   # - data_collect
 
 data:
-  dataset: fashion_mnist
+  dataset: mnist
   train_batch_size: 512
   test_batch_size: 16
   num_workers: 0
@@ -63,7 +63,7 @@ optimization:
   # Leave as null to finish at the last iteration.
   threshold_schedule_final_iter: 39
   constraints:
-    accuracy: 0.85
+    accuracy: 0.92
     power: 0.1
     performance: 0.1
     area: 0.2

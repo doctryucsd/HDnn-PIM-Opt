@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCHEDULE_SCRIPT="${SCRIPT_DIR}/constraint_schedule.sh"
 RANDOM_SCRIPT="${SCRIPT_DIR}/random.sh"
 
-: "${DATASET:=fashion}"
+: "${DATASET:=mnist}"
 
 if [ ! -x "${SCHEDULE_SCRIPT}" ]; then
   if [ -f "${SCHEDULE_SCRIPT}" ]; then

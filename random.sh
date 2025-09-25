@@ -1,4 +1,4 @@
-: "${DATASET:=cifar10}"
+: "${DATASET:=mnist}"
 FILE_NAME_PREFIX=${DATASET}_random
 
 # Configure runs here (not via CLI)
