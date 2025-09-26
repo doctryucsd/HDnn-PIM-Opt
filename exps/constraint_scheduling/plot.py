@@ -4,7 +4,7 @@ import argparse
 import json
 import os
 import sys
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, TypeVar
 import re
 
 import numpy as np
@@ -45,6 +45,19 @@ COLORBLIND_PALETTE: List[str] = [
 # Additional distinct styles to reduce ambiguity when lines overlap
 LINESTYLES: List[str] = ["-", "--", "-.", ":"]
 MARKERS: List[str] = ["o", "s", "^", "v", "D", "P", "X", "*", "h"]
+
+NEHVI_METHOD_ORDER: List[str] = ["NEHVI_linear", "NEHVI_static", "NEHVI_no-constraint", "random"]
+EHVI_METHOD_ORDER: List[str] = ["EHVI_linear", "EHVI_static", "EHVI_no-constraint", "random"]
+
+T = TypeVar("T")
+
+
+def _merge_seed_skips(target: Dict[str, set[int]], methods: List[str], seeds: set[int]) -> None:
+    """Union the provided seeds into target[method] for each method in methods."""
+    if not seeds:
+        return
+    for method in methods:
+        target.setdefault(method, set()).update(seeds)
 
 
 def _style_for_name(name: str) -> Tuple[str, str, str, int]:
@@ -113,6 +126,7 @@ def gather_method_hvs(
     iter_index: int,
     skip_seeds: set[int] | None = None,
     skip_methods: set[str] | None = None,
+    per_method_skip_seeds: Dict[str, set[int]] | None = None,
 ) -> Tuple[Dict[str, List[float]], Dict[str, Tuple[float, str]], Dict[str, List[float]]]:
     method_to_hvs: Dict[str, List[float]] = {}
     method_to_best: Dict[str, Tuple[float, str]] = {}
@@ -137,11 +151,14 @@ def gather_method_hvs(
         final_hvs: List[float] = []
         best_val: float = float("-inf")
         best_file: str = ""
+        method_seeds_to_skip: set[int] = set(skip_seeds or [])
+        if per_method_skip_seeds and entry in per_method_skip_seeds:
+            method_seeds_to_skip.update(per_method_skip_seeds[entry])
+
         for jf in sorted(json_files):
-            # Optionally skip certain seeds based on filename pattern
-            if skip_seeds:
+            if method_seeds_to_skip:
                 seed = _extract_seed_from_filename(jf)
-                if seed is not None and seed in skip_seeds:
+                if seed is not None and seed in method_seeds_to_skip:
                     continue
             try:
                 hv_val = compute_hv_at_iter(jf, ref_point, constraints, iter_index)
@@ -253,6 +270,7 @@ def gather_method_hv_series(
     constraints: List[float],
     skip_seeds: set[int] | None = None,
     skip_methods: set[str] | None = None,
+    per_method_skip_seeds: Dict[str, set[int]] | None = None,
 ) -> Dict[str, List[List[float]]]:
     method_to_series: Dict[str, List[List[float]]] = {}
 
@@ -270,10 +288,14 @@ def gather_method_hv_series(
         if not json_files:
             continue
         series_list: List[List[float]] = []
+        method_seeds_to_skip: set[int] = set(skip_seeds or [])
+        if per_method_skip_seeds and entry in per_method_skip_seeds:
+            method_seeds_to_skip.update(per_method_skip_seeds[entry])
+
         for jf in sorted(json_files):
-            if skip_seeds:
+            if method_seeds_to_skip:
                 seed = _extract_seed_from_filename(jf)
-                if seed is not None and seed in skip_seeds:
+                if seed is not None and seed in method_seeds_to_skip:
                     continue
             try:
                 series_list.append(compute_hv_series_for_file(jf, ref_point, constraints))
@@ -296,12 +318,24 @@ def _extract_seed_from_filename(path: str) -> int | None:
         return None
 
 
+def _filter_dict_by_order(source: Dict[str, T], order: List[str]) -> Dict[str, T]:
+    """Return an ordered subset of a dict based on the provided method order."""
+    return {method: source[method] for method in order if method in source}
+
+
+def _filename_with_suffix(filename: str, suffix: str) -> str:
+    """Append a suffix to a filename while preserving the extension."""
+    base, ext = os.path.splitext(filename)
+    return f"{base}_{suffix}{ext}" if ext else f"{filename}_{suffix}"
+
+
 def gather_seed_hv_series(
     dataset_dir: str,
     ref_point: List[float],
     constraints: List[float],
     skip_seeds: set[int] | None = None,
     skip_methods: set[str] | None = None,
+    per_method_skip_seeds: Dict[str, set[int]] | None = None,
 ) -> Tuple[Dict[int, Dict[str, List[float]]], List[str]]:
     """
     Build mapping: seed -> { method_name -> HV series (sliced from CURVE_START_ITER) }.
@@ -325,12 +359,16 @@ def gather_seed_hv_series(
         if not json_files:
             continue
         all_methods.append(entry)
+        method_seeds_to_skip: set[int] = set(skip_seeds or [])
+        if per_method_skip_seeds and entry in per_method_skip_seeds:
+            method_seeds_to_skip.update(per_method_skip_seeds[entry])
+
         for jf in sorted(json_files):
             seed = _extract_seed_from_filename(jf)
             if seed is None:
                 print(f"[warn] Could not parse seed from filename: {os.path.basename(jf)}")
                 continue
-            if skip_seeds and seed in skip_seeds:
+            if method_seeds_to_skip and seed in method_seeds_to_skip:
                 continue
             try:
                 series = compute_hv_series_for_file(jf, ref_point, constraints)
@@ -359,18 +397,28 @@ def plot_per_seed_curves(
     seed_to_method_series: Dict[int, Dict[str, List[float]]],
     dataset_name: str,
     out_dir: str,
+    method_order: List[str] | None = None,
+    filename_suffix: str | None = None,
 ) -> None:
     """Plot HV vs iteration for each seed, overlaying all available methods."""
     os.makedirs(out_dir, exist_ok=True)
     plt.rcParams.update({"font.size": 14})
+    saved_any = False
 
     for seed in sorted(seed_to_method_series.keys()):
         m2s = seed_to_method_series[seed]
         if not m2s:
             continue
 
+        if method_order:
+            methods = [m for m in method_order if m in m2s]
+        else:
+            methods = sorted(m2s.keys())
+        if not methods:
+            continue
+
         fig, ax = plt.subplots(figsize=(10, 5))
-        for method in sorted(m2s.keys()):
+        for method in methods:
             y = np.array(m2s[method], dtype=float)
             x = np.arange(len(y))
             color, linestyle, marker, markevery = _style_for_name(method)
@@ -402,16 +450,24 @@ def plot_per_seed_curves(
         ax.legend(loc="best")
         fig.tight_layout()
 
-        out_path = os.path.join(out_dir, f"hv_curve_seed_{seed}_from{CURVE_START_ITER}.pdf")
+        suffix_str = f"_{filename_suffix}" if filename_suffix else ""
+        out_path = os.path.join(out_dir, f"hv_curve_seed_{seed}_from{CURVE_START_ITER}{suffix_str}.pdf")
         fig.savefig(out_path)
         plt.close(fig)
         print(f"Saved: {out_path}")
+        saved_any = True
+
+    if not saved_any:
+        label = filename_suffix or ""
+        label_str = f" ({label})" if label else ""
+        print(f"[warn] No per-seed curves generated for {dataset_name}{label_str}.")
 
 
 def gather_method_best_metrics(
     dataset_dir: str,
     skip_seeds: set[int] | None = None,
     skip_methods: set[str] | None = None,
+    per_method_skip_seeds: Dict[str, set[int]] | None = None,
 ) -> Dict[str, Dict[str, Tuple[float, str, int, float, float, Dict[str, float]]]]:
     """
     For each method directory, scan all JSON files (seeds) and report the best value for
@@ -465,10 +521,14 @@ def gather_method_best_metrics(
         if not json_files:
             continue
 
+        method_seeds_to_skip: set[int] = set(skip_seeds or [])
+        if per_method_skip_seeds and entry in per_method_skip_seeds:
+            method_seeds_to_skip.update(per_method_skip_seeds[entry])
+
         for jf in sorted(json_files):
-            if skip_seeds:
+            if method_seeds_to_skip:
                 seed = _extract_seed_from_filename(jf)
-                if seed is not None and seed in skip_seeds:
+                if seed is not None and seed in method_seeds_to_skip:
                     continue
             try:
                 metrics = read_metrics(jf)
@@ -545,11 +605,19 @@ def plot_mean_curves(
     method_curves: Dict[str, Tuple[np.ndarray, np.ndarray]],
     title: str,
     out_path: str,
+    method_order: List[str] | None = None,
     shade_std: bool = False,
 ) -> None:
+    if method_order:
+        methods = [m for m in method_order if m in method_curves]
+    else:
+        methods = sorted(method_curves.keys())
+    if not methods:
+        print(f"[warn] No methods available for mean curve plot '{title}'; skipping.")
+        return
     plt.rcParams.update({"font.size": 14})
     fig, ax = plt.subplots(figsize=(10, 5))
-    for method in sorted(method_curves.keys()):
+    for method in methods:
         mean, std = method_curves[method]
         x = np.arange(len(mean))
         color, linestyle, marker, markevery = _style_for_name(method)
@@ -639,6 +707,20 @@ def main() -> None:
         help="One or more integer seeds to ignore (matched from filenames like '*seed42*.json').",
     )
     parser.add_argument(
+        "--ignore_seeds_nehvi",
+        type=int,
+        nargs="+",
+        default=None,
+        help="Seeds to ignore only for NEHVI-family methods (linear/static/no-constraint).",
+    )
+    parser.add_argument(
+        "--ignore_seeds_ehvi",
+        type=int,
+        nargs="+",
+        default=None,
+        help="Seeds to ignore only for EHVI-family methods (linear/static/no-constraint).",
+    )
+    parser.add_argument(
         "--ignore_methods",
         type=str,
         nargs="+",
@@ -678,11 +760,17 @@ def main() -> None:
     curve_shade_std: bool = args.curve_shade_std
     iter_index: int = args.iter_index
     skip_seeds: set[int] = set(args.ignore_seeds or [])
+    skip_seeds_nehvi: set[int] = set(args.ignore_seeds_nehvi or [])
+    skip_seeds_ehvi: set[int] = set(args.ignore_seeds_ehvi or [])
     skip_methods: set[str] = set(args.ignore_methods or [])
     # Convenience toggles
     no_hv_bar = bool(args.no_hv_bar)
     no_rate_bar = bool(args.no_rate_bar)
     hide_error_bars = bool(args.no_error_bars or args.no_bars)
+
+    per_method_skip_seeds: Dict[str, set[int]] = {}
+    _merge_seed_skips(per_method_skip_seeds, NEHVI_METHOD_ORDER, skip_seeds_nehvi)
+    _merge_seed_skips(per_method_skip_seeds, EHVI_METHOD_ORDER, skip_seeds_ehvi)
 
     if not os.path.isdir(dataset_dir):
         raise FileNotFoundError(f"Dataset directory not found: {dataset_dir}")
@@ -698,7 +786,11 @@ def main() -> None:
             title = f"{dataset_name} HV (iter {iter_index}, constrained)"
 
     if skip_seeds:
-        print(f"Ignoring seeds: {sorted(skip_seeds)}")
+        print(f"Ignoring seeds (all methods): {sorted(skip_seeds)}")
+    if skip_seeds_nehvi:
+        print(f"Ignoring NEHVI seeds: {sorted(skip_seeds_nehvi)}")
+    if skip_seeds_ehvi:
+        print(f"Ignoring EHVI seeds: {sorted(skip_seeds_ehvi)}")
     if skip_methods:
         print(f"Ignoring methods: {sorted(skip_methods)}")
     if args.no_bars and not args.no_error_bars:
@@ -711,6 +803,7 @@ def main() -> None:
         iter_index,
         skip_seeds=skip_seeds or None,
         skip_methods=skip_methods or None,
+        per_method_skip_seeds=per_method_skip_seeds or None,
     )
     if not method_hvs:
         print(f"No method results found in {dataset_dir}")
@@ -763,43 +856,55 @@ def main() -> None:
 
     # Plot and save HV bar (unless disabled)
     if not no_hv_bar:
-        out_path = os.path.join(plots_root_dir, out_name)
-        # Keep plotting order deterministic (sorted by method name)
-        method_stats_sorted = {m: method_stats[m] for m in sorted(method_stats.keys())}
-        method_values_sorted = {m: method_hvs[m] for m in sorted(method_stats.keys())}
-        plot_bar_with_error(
-            method_stats_sorted,
-            method_values_sorted,
-            title,
-            out_path,
-            show_error=(not hide_error_bars),
-        )
-        print(f"\nSaved: {out_path}")
+        for label, order in (("NEHVI", NEHVI_METHOD_ORDER), ("EHVI", EHVI_METHOD_ORDER)):
+            group_stats = _filter_dict_by_order(method_stats, order)
+            group_values = _filter_dict_by_order(method_hvs, order)
+            if not group_stats:
+                print(f"[warn] No methods found for {label} HV bar plot; skipping.")
+                continue
+            group_title = f"{title} ({label})"
+            out_path = os.path.join(plots_root_dir, _filename_with_suffix(out_name, label))
+            plot_bar_with_error(
+                group_stats,
+                group_values,
+                group_title,
+                out_path,
+                show_error=(not hide_error_bars),
+            )
+            print(f"\nSaved: {out_path}")
     else:
         print("\nSkipping HV bar plot (--no_hv_bar)")
 
     # Plot eligibility rate bar with range (unless disabled)
     if not no_rate_bar:
-        rate_title = f"{dataset_name} Eligibility Rate"
-        rate_out_path = os.path.join(plots_root_dir, rate_out_name)
-        method_rate_stats_sorted = {m: method_rate_stats[m] for m in sorted(method_rate_stats.keys())}
-        method_rate_values_sorted = {m: method_rates[m] for m in sorted(method_rate_stats.keys())}
-        plot_bar_with_error(
-            method_rate_stats_sorted,
-            method_rate_values_sorted,
-            rate_title,
-            rate_out_path,
-            ylabel="Eligibility Rate",
-            show_error=(not hide_error_bars),
-        )
-        print(f"Saved: {rate_out_path}")
+        rate_title_base = f"{dataset_name} Eligibility Rate"
+        for label, order in (("NEHVI", NEHVI_METHOD_ORDER), ("EHVI", EHVI_METHOD_ORDER)):
+            group_rate_stats = _filter_dict_by_order(method_rate_stats, order)
+            group_rate_values = _filter_dict_by_order(method_rates, order)
+            if not group_rate_stats:
+                print(f"[warn] No methods found for {label} eligibility rate plot; skipping.")
+                continue
+            group_title = f"{rate_title_base} ({label})"
+            rate_out_path = os.path.join(plots_root_dir, _filename_with_suffix(rate_out_name, label))
+            plot_bar_with_error(
+                group_rate_stats,
+                group_rate_values,
+                group_title,
+                rate_out_path,
+                ylabel="Eligibility Rate",
+                show_error=(not hide_error_bars),
+            )
+            print(f"Saved: {rate_out_path}")
     else:
         print("Skipping eligibility rate bar plot (--no_rate_bar)")
 
     # Print best raw metric values per method across all seeds/iterations
     print("\nBest raw metric values across seeds (per method):")
     best_metrics = gather_method_best_metrics(
-        dataset_dir, skip_seeds=skip_seeds or None, skip_methods=skip_methods or None
+        dataset_dir,
+        skip_seeds=skip_seeds or None,
+        skip_methods=skip_methods or None,
+        per_method_skip_seeds=per_method_skip_seeds or None,
     )
     for method in sorted(best_metrics.keys()):
         bm = best_metrics[method]
@@ -827,7 +932,12 @@ def main() -> None:
 
     # Plot mean HV vs iteration for all methods
     method_series = gather_method_hv_series(
-        dataset_dir, ref_point, constraints, skip_seeds=skip_seeds or None, skip_methods=skip_methods or None
+        dataset_dir,
+        ref_point,
+        constraints,
+        skip_seeds=skip_seeds or None,
+        skip_methods=skip_methods or None,
+        per_method_skip_seeds=per_method_skip_seeds or None,
     )
     method_curves: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
     for method, series_list in method_series.items():
@@ -836,18 +946,47 @@ def main() -> None:
             method_curves[method] = (mean, std)
         except ValueError:
             continue
-    curve_title = f"{dataset_name} Mean HV vs Iteration (constrained, from iter {CURVE_START_ITER})"
-    curve_out_path = os.path.join(plots_root_dir, curve_out_name)
-    # Always plot without std shading as requested
-    plot_mean_curves(method_curves, curve_title, curve_out_path, shade_std=False)
-    print(f"Saved: {curve_out_path}")
+    base_curve_title = f"{dataset_name} Mean HV vs Iteration (constrained, from iter {CURVE_START_ITER})"
+    for label, order in (("NEHVI", NEHVI_METHOD_ORDER), ("EHVI", EHVI_METHOD_ORDER)):
+        group_curves = _filter_dict_by_order(method_curves, order)
+        if not group_curves:
+            print(f"[warn] No methods found for {label} mean curve plot; skipping.")
+            continue
+        curve_title = f"{base_curve_title} ({label})"
+        curve_out_path = os.path.join(plots_root_dir, _filename_with_suffix(curve_out_name, label))
+        plot_mean_curves(
+            group_curves,
+            curve_title,
+            curve_out_path,
+            method_order=order,
+            shade_std=curve_shade_std,
+        )
+        print(f"Saved: {curve_out_path}")
 
     # Always generate per-seed HV vs iteration plots (overlaying all methods per seed)
     seed_to_method_series, _all_methods = gather_seed_hv_series(
-        dataset_dir, ref_point, constraints, skip_seeds=skip_seeds or None, skip_methods=skip_methods or None
+        dataset_dir,
+        ref_point,
+        constraints,
+        skip_seeds=skip_seeds or None,
+        skip_methods=skip_methods or None,
+        per_method_skip_seeds=per_method_skip_seeds or None,
     )
     per_seed_dir = os.path.join(plots_root_dir, "seed_curves")
-    plot_per_seed_curves(seed_to_method_series, dataset_name, per_seed_dir)
+    plot_per_seed_curves(
+        seed_to_method_series,
+        dataset_name,
+        per_seed_dir,
+        method_order=NEHVI_METHOD_ORDER,
+        filename_suffix="NEHVI",
+    )
+    plot_per_seed_curves(
+        seed_to_method_series,
+        dataset_name,
+        per_seed_dir,
+        method_order=EHVI_METHOD_ORDER,
+        filename_suffix="EHVI",
+    )
 
 
 if __name__ == "__main__":
