@@ -26,7 +26,7 @@ from plots.hv import compute_hv_series  # type: ignore
 # Defaults: single global threshold and ref point (minimization space)
 # You can customize these for your analysis.
 DEFAULT_REF_POINT: List[float] = [0.0, 1.0, 1.0, 1.0]
-DEFAULT_CONSTRAINTS: List[float] = [0.4, 0.1, 0.1, 0.2]  # [acc_min, energy_max, timing_max, area_max]
+DEFAULT_CONSTRAINTS: List[float] = [0.85, 0.1, 0.1, 0.2]  # [acc_min, energy_max, timing_max, area_max]
 # For HV-vs-iteration curves: start plotting from this iteration index (0-based)
 CURVE_START_ITER: int = 10
 
