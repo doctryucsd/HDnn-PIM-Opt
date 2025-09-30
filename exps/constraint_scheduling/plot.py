@@ -26,8 +26,9 @@ from plots.hv import compute_hv_series  # type: ignore
 # Defaults: single global threshold and ref point (minimization space)
 # You can customize these for your analysis.
 DEFAULT_REF_POINT: List[float] = [0.0, 1.0, 1.0, 1.0]
-DEFAULT_CONSTRAINTS: List[float] = [0.85, 0.1, 0.1, 0.2]  # [acc_min, energy_max, timing_max, area_max]
+DEFAULT_CONSTRAINTS: List[float] = [0.40, 0.1, 0.1, 0.2]  # [acc_min, energy_max, timing_max, area_max]
 # For HV-vs-iteration curves: start plotting from this iteration index (0-based)
+# [0.40, 0.1, 0.1, 0.2], [0.83, 0.1, 0.1, 0.2], [0.97, 0.03, 0.03, 0.2]
 CURVE_START_ITER: int = 10
 
 # Color-blind friendly palette (Okabe–Ito)
@@ -41,6 +42,14 @@ COLORBLIND_PALETTE: List[str] = [
     "#56B4E9",  # sky blue
     "#000000",  # black
 ]
+
+# Explicit overrides keep related EHVI/NEHVI variants aligned and avoid red/green clashes.
+CANONICAL_COLOR_OVERRIDES: Dict[str, str] = {
+    "linear": "#0072B2",         # blue
+    "static": "#CC79A7",         # purple
+    "no-constraint": "#E69F00",  # orange
+    "random": "#000000",         # black baseline
+}
 
 # Additional distinct styles to reduce ambiguity when lines overlap
 LINESTYLES: List[str] = ["-", "--", "-.", ":"]
@@ -60,6 +69,16 @@ def _merge_seed_skips(target: Dict[str, set[int]], methods: List[str], seeds: se
         target.setdefault(method, set()).update(seeds)
 
 
+def _canonical_color_key(name: str) -> str:
+    """Normalize method names so EHVI/NEHVI variants share the same color mapping."""
+    lowered = name.lower()
+    for prefix in ("nehvi_", "ehvi_", "nehvi-", "ehvi-"):
+        if lowered.startswith(prefix):
+            lowered = lowered[len(prefix):]
+            break
+    return lowered
+
+
 def _style_for_name(name: str) -> Tuple[str, str, str, int]:
     """Deterministically assign (color, linestyle, marker, markevery) from a name.
 
@@ -67,11 +86,15 @@ def _style_for_name(name: str) -> Tuple[str, str, str, int]:
     markevery is chosen to stagger marker positions across methods to avoid
     perfect overlap of markers.
     """
-    h = int(hashlib.md5(name.encode("utf-8")).hexdigest(), 16)
-    color = COLORBLIND_PALETTE[h % len(COLORBLIND_PALETTE)]
-    linestyle = LINESTYLES[(h // len(COLORBLIND_PALETTE)) % len(LINESTYLES)]
-    marker = MARKERS[(h // (len(COLORBLIND_PALETTE) * len(LINESTYLES))) % len(MARKERS)]
-    markevery = 5 + (h % 5)  # place markers every 5..9 points with per-name offset
+    style_hash = int(hashlib.md5(name.encode("utf-8")).hexdigest(), 16)
+    canonical_key = _canonical_color_key(name)
+    color = CANONICAL_COLOR_OVERRIDES.get(canonical_key)
+    if color is None:
+        color_index = int(hashlib.md5(canonical_key.encode("utf-8")).hexdigest(), 16) % len(COLORBLIND_PALETTE)
+        color = COLORBLIND_PALETTE[color_index]
+    linestyle = LINESTYLES[(style_hash // len(COLORBLIND_PALETTE)) % len(LINESTYLES)]
+    marker = MARKERS[(style_hash // (len(COLORBLIND_PALETTE) * len(LINESTYLES))) % len(MARKERS)]
+    markevery = 5 + (style_hash % 5)  # place markers every 5..9 points with per-name offset
     return color, linestyle, marker, markevery
 
 

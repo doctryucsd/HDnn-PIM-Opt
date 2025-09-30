@@ -11,3 +11,4 @@ build/
 dbg*.txt
 logs/
 plots/
+analysis_plots/
