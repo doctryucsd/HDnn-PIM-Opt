@@ -12,3 +12,4 @@ dbg*.txt
 logs/
 plots/
 analysis_plots/
+results/
