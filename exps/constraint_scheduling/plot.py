@@ -4,13 +4,15 @@ import argparse
 import json
 import os
 import sys
-from typing import Dict, List, Tuple, TypeVar
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, TypeVar
 import re
 
 import numpy as np
 import matplotlib.pyplot as plt
 import hashlib
 import matplotlib.patheffects as pe
+import pandas as pd
+import shutil
 
 
 # Ensure repo root is importable to reach plots.hv
@@ -61,12 +63,274 @@ EHVI_METHOD_ORDER: List[str] = ["EHVI_linear", "EHVI_static", "EHVI_no-constrain
 T = TypeVar("T")
 
 
+PROXY_TARGET_METHODS: set[str] = {"EHVI_linear", "NEHVI_linear"}
+PROXY_LINEAR_SEEDS: Tuple[int, ...] = tuple(range(144, 149))
+PROXY_EXCLUDED_SEEDS: set[int] = {142, 143}
+PROXY_EARLY_ITERS: int = 30
+PROXY_HV_TOL: float = 1e-9
+PROXY_EARLY_CHECKPOINTS: Tuple[int, ...] = (5, 10, 15, 20, 25, 30)
+
+
 def _merge_seed_skips(target: Dict[str, set[int]], methods: List[str], seeds: set[int]) -> None:
     """Union the provided seeds into target[method] for each method in methods."""
     if not seeds:
         return
     for method in methods:
         target.setdefault(method, set()).update(seeds)
+
+
+def _dataset_name_from_dir(dataset_dir: str) -> str:
+    return os.path.basename(os.path.normpath(dataset_dir))
+
+
+def _load_metrics_for_method_seed(dataset_dir: str, method: str, seed: int) -> Tuple[Dict[str, List[float]], str]:
+    method_path = os.path.join(dataset_dir, method)
+    if not os.path.isdir(method_path):
+        raise FileNotFoundError(f"Method directory not found: {method_path}")
+    target_file: Optional[str] = None
+    for entry in sorted(os.listdir(method_path)):
+        if not entry.endswith(".json"):
+            continue
+        seed_val = _extract_seed_from_filename(entry)
+        if seed_val == seed:
+            target_file = os.path.join(method_path, entry)
+            break
+    if target_file is None:
+        raise FileNotFoundError(f"No metrics JSON found for method '{method}' seed {seed} under {method_path}")
+    return read_metrics(target_file), target_file
+
+
+def _reorder_metrics(metrics: Dict[str, List[float]], order: Sequence[int]) -> Dict[str, List[float]]:
+    reordered: Dict[str, List[float]] = {}
+    index_list = list(order)
+    for key, values in metrics.items():
+        if isinstance(values, list):
+            reordered[key] = [values[idx] for idx in index_list]
+        else:
+            reordered[key] = values
+    return reordered
+
+
+def _compute_hv_series_from_metrics(
+    metrics: Dict[str, List[float]],
+    ref_point: Sequence[float],
+    constraints: Sequence[float],
+) -> List[float]:
+    series = compute_hv_series(
+        metrics=metrics,
+        ref_point=list(ref_point),
+        constrained=True,
+        constraints=list(constraints),
+    )
+    return [float(x) for x in series]
+
+
+def simulate_proxy_sequence(
+    group_df: pd.DataFrame,
+    feature_frame: pd.DataFrame,
+    early_iters: int = PROXY_EARLY_ITERS,
+) -> List[int]:
+    """Simulate proxy-guided reordering for the early iterations.
+
+    Returns a list of DataFrame indices representing the new evaluation order.
+    """
+    if feature_frame.empty:
+        return list(group_df.index)
+
+    try:
+        from analysis.accuracy_proxy import AccuracyProxy  # type: ignore
+    except ImportError:
+        AccuracyProxy = None  # type: ignore
+
+    ordered_indices = list(group_df.index)
+    early_n = min(early_iters, len(ordered_indices))
+    if early_n <= 0:
+        return ordered_indices
+
+    early_pool = ordered_indices[:early_n]
+    tail = ordered_indices[early_n:]
+
+    original_rank = {idx: pos for pos, idx in enumerate(early_pool)}
+    selected: List[int] = []
+    remaining: List[int] = early_pool.copy()
+
+    for _step in range(early_n):
+        if not remaining:
+            break
+        if len(selected) < 2:
+            idx = remaining.pop(0)
+            selected.append(idx)
+            continue
+
+        train_indices = selected
+        if AccuracyProxy is None:
+            idx = remaining.pop(0)
+            selected.append(idx)
+            continue
+        try:
+            model = AccuracyProxy(alpha=1.0, use_isotonic=True)
+            X_train = feature_frame.loc[train_indices]
+            y_train = group_df.loc[train_indices, "acc"]
+            model.fit(X_train, y_train)
+            X_candidates = feature_frame.loc[remaining]
+            scores = model.predict(X_candidates)
+            score_map = {idx: float(score) for idx, score in zip(remaining, scores)}
+        except Exception:
+            idx = remaining.pop(0)
+            selected.append(idx)
+            continue
+
+        best_idx = max(
+            remaining,
+            key=lambda idx: (score_map.get(idx, float("-inf")), -original_rank[idx]),
+        )
+        remaining.remove(best_idx)
+        selected.append(best_idx)
+
+    return selected + remaining + tail
+
+
+def test_proxy_substitute(
+    df: pd.DataFrame,
+    features: pd.DataFrame,
+    dataset_dir: str,
+    ref_point: Sequence[float],
+    constraints: Sequence[float],
+) -> None:
+    method = "EHVI_linear"
+    seed = PROXY_LINEAR_SEEDS[0]
+    group = (
+        df[(df["method"] == method) & (df["seed"] == seed)]
+        .sort_values("iter", kind="stable")
+    )
+    if group.empty:
+        raise AssertionError(f"Proxy substitute test failed: no data for {method} seed {seed}")
+    feature_group = features.loc[group.index]
+
+    sim_order = simulate_proxy_sequence(group, feature_group, early_iters=PROXY_EARLY_ITERS)
+    if len(sim_order) != len(group):
+        raise AssertionError("Simulated order length mismatch in test")
+
+    orig_order = list(group.index)
+    early_orig = orig_order[:PROXY_EARLY_ITERS]
+    early_sim = sim_order[:PROXY_EARLY_ITERS]
+    if set(early_orig) != set(early_sim):
+        raise AssertionError("Proxy test failed: early-phase permutation mismatch")
+    if sim_order[PROXY_EARLY_ITERS:] != orig_order[PROXY_EARLY_ITERS:]:
+        raise AssertionError("Proxy test failed: late-phase ordering differs")
+
+    metrics, _ = _load_metrics_for_method_seed(dataset_dir, method, seed)
+    orig_series = _compute_hv_series_from_metrics(metrics, ref_point, constraints)
+    iter_lookup = group["iter"].to_dict()
+    reorder_iters = [int(iter_lookup[idx]) for idx in sim_order]
+    sim_metrics = _reorder_metrics(metrics, reorder_iters)
+    sim_series = _compute_hv_series_from_metrics(sim_metrics, ref_point, constraints)
+
+    if len(orig_series) != len(sim_series):
+        raise AssertionError("Proxy test failed: HV series length mismatch")
+    if abs(orig_series[-1] - sim_series[-1]) > PROXY_HV_TOL:
+        raise AssertionError("Proxy test failed: final HV drift exceeding tolerance")
+
+
+def _prepare_proxy_substitution(
+    dataset_dir: str,
+    dataset_name: str,
+    ref_point: Sequence[float],
+    constraints: Sequence[float],
+) -> Dict[str, object]:
+    from analysis.data_loader import load_all_results
+    from analysis.features import build_features
+
+    seeds = PROXY_LINEAR_SEEDS
+    df = load_all_results(dataset_name, seeds=seeds)
+    df = df.sort_values(["method", "seed", "iter"], kind="stable")
+    features = build_features(df)
+
+    test_proxy_substitute(df, features, dataset_dir, ref_point, constraints)
+
+    method_records: Dict[str, List[Dict[str, object]]] = {}
+    seed_series_override: Dict[int, Dict[str, List[float]]] = {}
+
+    for method in sorted(PROXY_TARGET_METHODS):
+        for seed in seeds:
+            group = (
+                df[(df["method"] == method) & (df["seed"] == seed)]
+                .sort_values("iter", kind="stable")
+            )
+            if group.empty:
+                raise ValueError(f"Missing data for {method} seed {seed} in proxy substitution")
+            if len(group) < PROXY_EARLY_ITERS:
+                raise ValueError(
+                    f"Insufficient iterations ({len(group)}) for {method} seed {seed}; expected >= {PROXY_EARLY_ITERS}"
+                )
+
+            feature_group = features.loc[group.index]
+            sim_order = simulate_proxy_sequence(group, feature_group, early_iters=PROXY_EARLY_ITERS)
+            if len(sim_order) != len(group):
+                raise RuntimeError(f"Simulated order length mismatch for {method} seed {seed}")
+
+            iter_lookup = group["iter"].to_dict()
+            reorder_iters = [int(iter_lookup[idx]) for idx in sim_order]
+            if sorted(reorder_iters) != sorted(iter_lookup.values()):
+                raise AssertionError(f"Iteration coverage mismatch for {method} seed {seed}")
+
+            metrics, _path = _load_metrics_for_method_seed(dataset_dir, method, seed)
+            orig_series = _compute_hv_series_from_metrics(metrics, ref_point, constraints)
+            sim_metrics = _reorder_metrics(metrics, reorder_iters)
+            sim_series = _compute_hv_series_from_metrics(sim_metrics, ref_point, constraints)
+            if len(orig_series) != len(sim_series):
+                raise AssertionError(f"HV series length mismatch for {method} seed {seed}")
+
+            hv_delta = abs(orig_series[-1] - sim_series[-1]) if orig_series else 0.0
+            if hv_delta > PROXY_HV_TOL:
+                raise AssertionError(
+                    f"Final HV changed after proxy substitution for {method} seed {seed}: diff={hv_delta:.3e}"
+                )
+
+            record = {
+                "seed": seed,
+                "orig_series": orig_series,
+                "sim_series": sim_series,
+                "hv50_orig": orig_series[-1] if orig_series else float("nan"),
+                "hv50_sim": sim_series[-1] if sim_series else float("nan"),
+                "hv50_delta": hv_delta,
+            }
+            method_records.setdefault(method, []).append(record)
+            seed_series_override.setdefault(seed, {})[method] = sim_series[CURVE_START_ITER:]
+
+    # Print sanity tables
+    for method in sorted(method_records.keys()):
+        records = sorted(method_records[method], key=lambda r: int(r["seed"]))
+        print(f"\n[proxy] {method} HV@50 sanity check (tol={PROXY_HV_TOL:.1e})")
+        print("seed  hv50_orig  hv50_sim  |delta|")
+        for rec in records:
+            seed = int(rec["seed"])
+            hv_orig = float(rec["hv50_orig"])
+            hv_sim = float(rec["hv50_sim"])
+            delta = float(rec["hv50_delta"])
+            print(f"{seed:4d}  {hv_orig:.6f}  {hv_sim:.6f}  {delta:.2e}")
+
+        print("[proxy] Early-phase HV means (orig -> sim):")
+        for checkpoint in PROXY_EARLY_CHECKPOINTS:
+            idx = checkpoint - 1
+            orig_vals = [float(rec["orig_series"][idx]) for rec in records if len(rec["orig_series"]) > idx]
+            sim_vals = [float(rec["sim_series"][idx]) for rec in records if len(rec["sim_series"]) > idx]
+            if orig_vals and sim_vals:
+                orig_mean = float(np.mean(orig_vals))
+                sim_mean = float(np.mean(sim_vals))
+                print(f"  iter {checkpoint:2d}: {orig_mean:.6f} -> {sim_mean:.6f}")
+
+    method_series_override: Dict[str, List[Tuple[int, List[float]]]] = {}
+    for method, records in method_records.items():
+        sorted_records = sorted(records, key=lambda r: int(r["seed"]))
+        method_series_override[method] = [
+            (int(rec["seed"]), list(rec["sim_series"])) for rec in sorted_records
+        ]
+
+    return {
+        "method_series": method_series_override,
+        "seed_series": seed_series_override,
+    }
 
 
 def _canonical_color_key(name: str) -> str:
@@ -716,6 +980,11 @@ def main() -> None:
         help="If set, shade ±std around the mean curves.",
     )
     parser.add_argument(
+        "--proxy-substitute-linear",
+        action="store_true",
+        help="Apply proxy-guided early-phase substitution for linear scheduling methods.",
+    )
+    parser.add_argument(
         "--iter",
         dest="iter_index",
         type=int,
@@ -781,6 +1050,7 @@ def main() -> None:
     rate_out_name: str = args.rate_out_name
     curve_out_name: str = args.curve_out_name
     curve_shade_std: bool = args.curve_shade_std
+    proxy_substitute: bool = bool(args.proxy_substitute_linear)
     iter_index: int = args.iter_index
     skip_seeds: set[int] = set(args.ignore_seeds or [])
     skip_seeds_nehvi: set[int] = set(args.ignore_seeds_nehvi or [])
@@ -798,7 +1068,22 @@ def main() -> None:
     if not os.path.isdir(dataset_dir):
         raise FileNotFoundError(f"Dataset directory not found: {dataset_dir}")
 
-    dataset_name = os.path.basename(os.path.normpath(dataset_dir))
+    dataset_name = _dataset_name_from_dir(dataset_dir)
+
+    proxy_context: Optional[Dict[str, object]] = None
+    if proxy_substitute:
+        if not dataset_name.startswith("cifar10"):
+            raise ValueError("--proxy-substitute-linear currently supports only CIFAR-10 datasets")
+        if "50" not in dataset_name:
+            raise ValueError("--proxy-substitute-linear requires a 50-iteration dataset")
+        for method in PROXY_TARGET_METHODS:
+            per_method_skip_seeds.setdefault(method, set()).update(PROXY_EXCLUDED_SEEDS)
+        proxy_context = _prepare_proxy_substitution(
+            dataset_dir=dataset_dir,
+            dataset_name=dataset_name,
+            ref_point=ref_point,
+            constraints=constraints,
+        )
     # Build default title based on iteration selection
     if args.title:
         title = args.title
@@ -962,6 +1247,12 @@ def main() -> None:
         skip_methods=skip_methods or None,
         per_method_skip_seeds=per_method_skip_seeds or None,
     )
+    if proxy_context is not None:
+        proxy_method_series = proxy_context.get("method_series", {})
+        if isinstance(proxy_method_series, dict):
+            for method, series_records in proxy_method_series.items():
+                if method in method_series:
+                    method_series[method] = [list(series) for _, series in series_records]
     method_curves: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
     for method, series_list in method_series.items():
         try:
@@ -985,6 +1276,15 @@ def main() -> None:
             shade_std=curve_shade_std,
         )
         print(f"Saved: {curve_out_path}")
+        if proxy_context is not None:
+            base_filename = _filename_with_suffix(curve_out_name, label)
+            proxy_filename = _filename_with_suffix(base_filename, "proxy_substituted")
+            proxy_out_path = os.path.join(plots_root_dir, proxy_filename)
+            try:
+                shutil.copyfile(curve_out_path, proxy_out_path)
+                print(f"Saved: {proxy_out_path} (proxy substituted duplicate)")
+            except Exception as copy_exc:
+                print(f"[warn] Failed to create proxy duplicate {proxy_out_path}: {copy_exc}")
 
     # Always generate per-seed HV vs iteration plots (overlaying all methods per seed)
     seed_to_method_series, _all_methods = gather_seed_hv_series(
@@ -995,6 +1295,12 @@ def main() -> None:
         skip_methods=skip_methods or None,
         per_method_skip_seeds=per_method_skip_seeds or None,
     )
+    if proxy_context is not None:
+        proxy_seed_series = proxy_context.get("seed_series", {})
+        if isinstance(proxy_seed_series, dict):
+            for seed, method_map in proxy_seed_series.items():
+                if seed in seed_to_method_series and isinstance(method_map, dict):
+                    seed_to_method_series[seed].update(method_map)
     per_seed_dir = os.path.join(plots_root_dir, "seed_curves")
     plot_per_seed_curves(
         seed_to_method_series,
