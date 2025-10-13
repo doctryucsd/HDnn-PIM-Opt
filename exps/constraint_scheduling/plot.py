@@ -1,36 +1,34 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import re
+import shutil
 import sys
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple, TypeVar
-import re
 
-import numpy as np
-import matplotlib.pyplot as plt
-import hashlib
 import matplotlib.patheffects as pe
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-import shutil
+from pymoo.indicators.hv import HV
 
 
-# Ensure repo root is importable to reach plots.hv
+# Ensure repo root is importable to reach shared analysis modules.
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-PLOTS_DIR = os.path.join(REPO_ROOT, "plots")
-for p in (REPO_ROOT, PLOTS_DIR):
-    if p not in sys.path:
-        sys.path.insert(0, p)
-
-from plots.hv import compute_hv_series  # type: ignore
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
 
 # Defaults: single global threshold and ref point (minimization space)
 # You can customize these for your analysis.
 DEFAULT_REF_POINT: List[float] = [0.0, 1.0, 1.0, 1.0]
 DEFAULT_CONSTRAINTS: List[float] = [0.40, 0.1, 0.1, 0.2]  # [acc_min, energy_max, timing_max, area_max]
-# For HV-vs-iteration curves: start plotting from this iteration index (0-based)
+# For HV-vs-iteration curves: start plotting from this iteration index (0-based).
 # [0.40, 0.1, 0.1, 0.2], [0.83, 0.1, 0.1, 0.2], [0.97, 0.03, 0.03, 0.2]
+# Override with CLI flag `--start_iter` when needed.
 CURVE_START_ITER: int = 10
 
 # Color-blind friendly palette (Okabe–Ito)
@@ -56,6 +54,9 @@ CANONICAL_COLOR_OVERRIDES: Dict[str, str] = {
 # Additional distinct styles to reduce ambiguity when lines overlap
 LINESTYLES: List[str] = ["-", "--", "-.", ":"]
 MARKERS: List[str] = ["o", "s", "^", "v", "D", "P", "X", "*", "h"]
+
+DEFAULT_FONT_SIZE: int = 18  # Update this constant to change font sizes globally.
+DEFAULT_LINE_WIDTH: float = 5  # Update this constant to change plot line thickness.
 
 NEHVI_METHOD_ORDER: List[str] = ["NEHVI_linear", "NEHVI_static", "NEHVI_no-constraint", "random"]
 EHVI_METHOD_ORDER: List[str] = ["EHVI_linear", "EHVI_static", "EHVI_no-constraint", "random"]
@@ -350,8 +351,8 @@ def _style_for_name(name: str) -> Tuple[str, str, str, int]:
     markevery is chosen to stagger marker positions across methods to avoid
     perfect overlap of markers.
     """
-    style_hash = int(hashlib.md5(name.encode("utf-8")).hexdigest(), 16)
     canonical_key = _canonical_color_key(name)
+    style_hash = int(hashlib.md5(canonical_key.encode("utf-8")).hexdigest(), 16)
     color = CANONICAL_COLOR_OVERRIDES.get(canonical_key)
     if color is None:
         color_index = int(hashlib.md5(canonical_key.encode("utf-8")).hexdigest(), 16) % len(COLORBLIND_PALETTE)
@@ -360,6 +361,91 @@ def _style_for_name(name: str) -> Tuple[str, str, str, int]:
     marker = MARKERS[(style_hash // (len(COLORBLIND_PALETTE) * len(LINESTYLES))) % len(MARKERS)]
     markevery = 5 + (style_hash % 5)  # place markers every 5..9 points with per-name offset
     return color, linestyle, marker, markevery
+
+
+def _display_label(text: str) -> str:
+    """Apply display-friendly renamings for plot labels."""
+    label = text
+    replacements = (
+        (r"(?i)\brandom\b", "Random"),
+        (r"(?i)no-constraint", "NC"),
+        (r"(?i)static", "SC"),
+        (r"(?i)scheduling", "CS(Ours)"),
+        (r"(?i)linear", "CS(Ours)"),
+    )
+    for pattern, replacement in replacements:
+        label = re.sub(pattern, replacement, label)
+    label = re.sub(r"[_-]+", " ", label).strip()
+    canonical_key = _canonical_color_key(text)
+    lowered = text.lower()
+    if lowered.startswith(("nehvi_", "nehvi-")) and canonical_key == "no-constraint":
+        label = re.sub(r"\bNC\b", "NC [4]", label, count=1)
+    return label
+
+
+def _prioritize_ours(methods: List[str]) -> List[str]:
+    """Return methods with CS(Ours) variants moved to the end so they draw on top."""
+    ours: List[str] = []
+    others: List[str] = []
+    for method in methods:
+        if "CS(Ours)" in _display_label(method):
+            ours.append(method)
+        else:
+            others.append(method)
+    return others + ours
+
+
+def _transform_points(
+    acc: Sequence[float],
+    eng: Sequence[float],
+    tim: Sequence[float],
+    area: Sequence[float],
+) -> np.ndarray:
+    """Convert metrics to minimization space for HV computation."""
+    return np.array([[-a, e, t, ar] for a, e, t, ar in zip(acc, eng, tim, area)], dtype=float)
+
+
+def compute_hv_series(
+    metrics: Dict[str, Sequence[float]],
+    ref_point: Sequence[float],
+    constrained: bool,
+    constraints: Sequence[float] | None,
+) -> List[float]:
+    """Compute hypervolume progression for the provided metrics."""
+    acc = metrics.get("accuracy", [])
+    eng = metrics.get("energy", [])
+    tim = metrics.get("timing", [])
+    area = metrics.get("area", [])
+
+    points_all = _transform_points(acc, eng, tim, area)
+    N = len(points_all)
+
+    feasible_mask = np.ones(N, dtype=bool)
+    if constrained:
+        if constraints is None:
+            raise ValueError("constraints must be provided when constrained=True")
+        if len(constraints) != 4:
+            raise ValueError("constraints must contain four values: [acc_min, energy_max, timing_max, area_max]")
+        acc_thr, eng_thr, tim_thr, area_thr = constraints
+        feasible_mask = np.array(
+            [
+                (a >= acc_thr) and (e <= eng_thr) and (t <= tim_thr) and (ar <= area_thr)
+                for a, e, t, ar in zip(acc, eng, tim, area)
+            ],
+            dtype=bool,
+        )
+
+    hv_indicator = HV(ref_point=np.asarray(ref_point, dtype=float))
+    series: List[float] = []
+    for end in range(1, N + 1):
+        pts = points_all[:end]
+        mask = feasible_mask[:end]
+        pts = pts[mask]
+        if pts.size == 0:
+            series.append(0.0)
+        else:
+            series.append(float(hv_indicator(pts)))
+    return series
 
 
 def read_metrics(path: str) -> Dict[str, List[float]]:
@@ -470,12 +556,15 @@ def plot_bar_with_error(
     method_values: Dict[str, List[float]],
     title: str,
     out_path: str,
-    ylabel: str = "Hypervolume",
+    ylabel: str = "Feasible Hypervolume",
     show_error: bool = True,
 ) -> None:
-    plt.rcParams.update({"font.size": 14})
+    plt.rcParams.update({"font.size": DEFAULT_FONT_SIZE})
     methods = list(method_stats.keys())
     means = [method_stats[m][0] for m in methods]
+    display_methods = [_display_label(m) for m in methods]
+    display_title = _display_label(title)
+    display_ylabel = _display_label(ylabel)
 
     # Use range (min..max) as error bars instead of stddev
     yerr_lower: List[float] = []
@@ -495,9 +584,9 @@ def plot_bar_with_error(
         ax.bar(x, means, alpha=0.9)
 
     ax.set_xticks(x)
-    ax.set_xticklabels(methods, rotation=30, ha="right")
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
+    ax.set_xticklabels(display_methods, rotation=30, ha="right")
+    ax.set_ylabel(display_ylabel)
+    ax.set_title(display_title)
     ax.grid(axis="y", linestyle=":", alpha=0.4)
 
     # Shrink the bottom part: zoom y-axis around min..max with a small padding
@@ -522,18 +611,21 @@ def plot_bar_with_error(
 def plot_bar_with_std(
     method_stats: Dict[str, Tuple[float, float]], title: str, out_path: str, ylabel: str = "Eligibility Rate"
 ) -> None:
-    plt.rcParams.update({"font.size": 14})
+    plt.rcParams.update({"font.size": DEFAULT_FONT_SIZE})
     methods = list(method_stats.keys())
     means = [method_stats[m][0] for m in methods]
     stds = [method_stats[m][1] for m in methods]
+    display_methods = [_display_label(m) for m in methods]
+    display_title = _display_label(title)
+    display_ylabel = _display_label(ylabel)
 
     fig, ax = plt.subplots(figsize=(10, 5))
     x = np.arange(len(methods))
     ax.bar(x, means, yerr=stds, capsize=6, alpha=0.9)
     ax.set_xticks(x)
-    ax.set_xticklabels(methods, rotation=30, ha="right")
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
+    ax.set_xticklabels(display_methods, rotation=30, ha="right")
+    ax.set_ylabel(display_ylabel)
+    ax.set_title(display_title)
     ax.grid(axis="y", linestyle=":", alpha=0.4)
     fig.tight_layout()
     fig.savefig(out_path)
@@ -689,7 +781,7 @@ def plot_per_seed_curves(
 ) -> None:
     """Plot HV vs iteration for each seed, overlaying all available methods."""
     os.makedirs(out_dir, exist_ok=True)
-    plt.rcParams.update({"font.size": 14})
+    plt.rcParams.update({"font.size": DEFAULT_FONT_SIZE})
     saved_any = False
 
     for seed in sorted(seed_to_method_series.keys()):
@@ -703,17 +795,20 @@ def plot_per_seed_curves(
             methods = sorted(m2s.keys())
         if not methods:
             continue
+        methods = _prioritize_ours(methods)
 
         fig, ax = plt.subplots(figsize=(10, 5))
         for method in methods:
             y = np.array(m2s[method], dtype=float)
             x = np.arange(len(y))
             color, linestyle, marker, markevery = _style_for_name(method)
+            display_name = _display_label(method)
+            is_ours = "CS(Ours)" in display_name
             line, = ax.plot(
                 x,
                 y,
-                label=method,
-                linewidth=2.5,
+                label=display_name,
+                linewidth=DEFAULT_LINE_WIDTH,
                 color=color,
                 linestyle=linestyle,
                 marker=marker,
@@ -722,6 +817,7 @@ def plot_per_seed_curves(
                 markeredgecolor="white",
                 markeredgewidth=0.9,
                 alpha=0.95,
+                zorder=5 if is_ours else 3,
             )
             line.set_path_effects([
                 pe.Stroke(linewidth=4, foreground="white", alpha=0.8),
@@ -729,10 +825,7 @@ def plot_per_seed_curves(
             ])
 
         ax.set_xlabel("Iteration (offset)")
-        ax.set_ylabel("Hypervolume")
-        ax.set_title(
-            f"{dataset_name} Seed {seed} HV vs Iteration (constrained, from iter {CURVE_START_ITER})"
-        )
+        ax.set_ylabel("Feasible Hypervolume")
         ax.grid(axis="both", linestyle=":", alpha=0.4)
         ax.legend(loc="best")
         fig.tight_layout()
@@ -902,17 +995,20 @@ def plot_mean_curves(
     if not methods:
         print(f"[warn] No methods available for mean curve plot '{title}'; skipping.")
         return
-    plt.rcParams.update({"font.size": 14})
+    methods = _prioritize_ours(methods)
+    plt.rcParams.update({"font.size": DEFAULT_FONT_SIZE})
     fig, ax = plt.subplots(figsize=(10, 5))
     for method in methods:
         mean, std = method_curves[method]
         x = np.arange(len(mean))
         color, linestyle, marker, markevery = _style_for_name(method)
+        display_name = _display_label(method)
+        is_ours = "CS(Ours)" in display_name
         line, = ax.plot(
             x,
             mean,
-            label=method,
-            linewidth=2.5,
+            label=display_name,
+            linewidth=DEFAULT_LINE_WIDTH,
             color=color,
             linestyle=linestyle,
             marker=marker,
@@ -921,6 +1017,7 @@ def plot_mean_curves(
             markeredgecolor="white",
             markeredgewidth=0.9,
             alpha=0.95,
+            zorder=5 if is_ours else 3,
         )
         line.set_path_effects([
             pe.Stroke(linewidth=4, foreground="white", alpha=0.8),
@@ -929,8 +1026,7 @@ def plot_mean_curves(
         if shade_std:
             ax.fill_between(x, mean - std, mean + std, alpha=0.15, color=color)
     ax.set_xlabel("Iteration")
-    ax.set_ylabel("Hypervolume")
-    ax.set_title(title)
+    ax.set_ylabel("Feasible Hypervolume")
     ax.grid(axis="both", linestyle=":", alpha=0.4)
     ax.legend(loc="best")
     fig.tight_layout()
@@ -939,6 +1035,7 @@ def plot_mean_curves(
 
 
 def main() -> None:
+    global CURVE_START_ITER
     parser = argparse.ArgumentParser(description="Compute and plot constrained HV and eligibility rate across methods for a dataset.")
     parser.add_argument("--dataset_dir", type=str, required=True, help="Path to dataset results directory (e.g., exps/constraint_scheduling/cifar10)")
     parser.add_argument(
@@ -990,6 +1087,12 @@ def main() -> None:
         type=int,
         default=-1,
         help="Iteration index to consider (0-based). Use -1 for final iteration.",
+    )
+    parser.add_argument(
+        "--start_iter",
+        type=int,
+        default=CURVE_START_ITER,
+        help="Iteration offset to begin HV curve aggregation (0-based).",
     )
     parser.add_argument(
         "--ignore_seeds",
@@ -1052,6 +1155,8 @@ def main() -> None:
     curve_shade_std: bool = args.curve_shade_std
     proxy_substitute: bool = bool(args.proxy_substitute_linear)
     iter_index: int = args.iter_index
+    start_iter: int = args.start_iter
+    CURVE_START_ITER = start_iter
     skip_seeds: set[int] = set(args.ignore_seeds or [])
     skip_seeds_nehvi: set[int] = set(args.ignore_seeds_nehvi or [])
     skip_seeds_ehvi: set[int] = set(args.ignore_seeds_ehvi or [])
@@ -1142,9 +1247,10 @@ def main() -> None:
     )
     print("")
     for method in sorted(method_stats.keys()):
+        display_method = "Random" if method.lower() == "random" else method
         mean, std = method_stats[method]
         n = len(method_hvs[method])
-        print(f"{method}: mean={mean:.6f}, std={std:.6f} (N={n})")
+        print(f"{display_method}: mean={mean:.6f}, std={std:.6f} (N={n})")
         best_val, best_file = method_best.get(method, (float("nan"), ""))
         if best_file:
             print(f"  best={best_val:.6f}  file={os.path.basename(best_file)}")
@@ -1154,9 +1260,10 @@ def main() -> None:
     # Print eligibility rate stats
     print("\nEligibility Rate (feasible/total)")
     for method in sorted(method_rate_stats.keys()):
+        display_method = "Random" if method.lower() == "random" else method
         mean, std = method_rate_stats[method]
         n = len(method_rates.get(method, []))
-        print(f"{method}: mean={mean:.4f}, std={std:.4f} (N={n})")
+        print(f"{display_method}: mean={mean:.4f}, std={std:.4f} (N={n})")
 
     # Prepare plots output root directory under the dataset directory
     plots_root_dir = os.path.join(dataset_dir, "plots")
@@ -1215,12 +1322,13 @@ def main() -> None:
         per_method_skip_seeds=per_method_skip_seeds or None,
     )
     for method in sorted(best_metrics.keys()):
+        display_method = "Random" if method.lower() == "random" else method
         bm = best_metrics[method]
         acc_v, acc_f, acc_i, acc_m, acc_s, acc_ctx = bm['accuracy']
         eng_v, eng_f, eng_i, eng_m, eng_s, eng_ctx = bm['energy']
         tim_v, tim_f, tim_i, tim_m, tim_s, tim_ctx = bm['timing']
         area_v, area_f, area_i, area_m, area_s, area_ctx = bm['area']
-        print(f"{method}:")
+        print(f"{display_method}:")
         print(f"  accuracy_max = {acc_v:.6f}  (file={acc_f}, iter={acc_i}) | mean={acc_m:.6f}, std={acc_s:.6f}")
         print(
             f"    at_iter: energy={acc_ctx.get('energy', float('nan')):.6f}, timing={acc_ctx.get('timing', float('nan')):.6f}, area={acc_ctx.get('area', float('nan')):.6f}"

@@ -21,6 +21,15 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 matplotlib.use("Agg")  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
+plt.rcParams.update({
+    "font.size": 16,
+    "axes.titlesize": 18,
+    "axes.labelsize": 16,
+    "legend.fontsize": 16,
+    "xtick.labelsize": 10,
+    "ytick.labelsize": 10,
+})
+
 ACC_THRESHOLD_DEFAULT = 0.90
 MINIMIZE_METRICS = ("power", "latency", "area")
 METRIC_ALIASES = {
@@ -42,8 +51,8 @@ INFEASIBLE_MARKER = "^"
 FEASIBLE_MARKER = "o"
 PARETO_ALL_COLOR = "#888888"
 PARETO_FEASIBLE_COLOR = "#006400"
-SCATTER_INFEASIBLE_SIZE = 150
-SCATTER_FEASIBLE_SIZE = 150
+SCATTER_INFEASIBLE_SIZE = 200
+SCATTER_FEASIBLE_SIZE = 200
 SIZE_MARKER_BASE = 40
 SIZE_MARKER_SPAN = 180
 RNG = random.Random(1337)
@@ -950,11 +959,10 @@ def plot_pareto_2d(
             loc="lower center",
             bbox_to_anchor=(0.5, -0.25),
             frameon=True,
-            fontsize=11,
             ncol=2,
         )
 
-    fig.subplots_adjust(left=3000, right=0.3, top=0.3, bottom=0.08)
+    fig.subplots_adjust(left=0.12, right=0.92, top=0.9, bottom=0.12)
 
     fig.savefig(out_png, dpi=dpi)
     fig.savefig(out_pdf, dpi=dpi)
@@ -1110,10 +1118,9 @@ def plot_pareto_3d(
         ax.legend(
             legend_handles,
             legend_labels,
-            loc="lower left",
-            bbox_to_anchor=(0.32, 0.12),
+            loc="lower center",
+            bbox_to_anchor=(0.5, 0.2),
             frameon=True,
-            fontsize=11,
             borderaxespad=0.4,
         )
 
