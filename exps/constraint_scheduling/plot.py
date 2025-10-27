@@ -27,9 +27,21 @@ if REPO_ROOT not in sys.path:
 DEFAULT_REF_POINT: List[float] = [0.0, 1.0, 1.0, 1.0]
 DEFAULT_CONSTRAINTS: List[float] = [0.40, 0.1, 0.1, 0.2]  # [acc_min, energy_max, timing_max, area_max]
 # For HV-vs-iteration curves: start plotting from this iteration index (0-based).
-# [0.40, 0.1, 0.1, 0.2], [0.83, 0.1, 0.1, 0.2], [0.97, 0.03, 0.03, 0.2]
+# cifar-10: [0.40, 0.1, 0.1, 0.2], fashion_mnist: [0.83, 0.1, 0.1, 0.2], mnist: [0.97, 0.03, 0.03, 0.2]
 # Override with CLI flag `--start_iter` when needed.
 CURVE_START_ITER: int = 10
+
+# Dataset-specific constraint thresholds (acc_min, energy_max, timing_max, area_max).
+DATASET_CONSTRAINTS: Dict[str, List[float]] = {
+    "cifar10": [0.40, 0.1, 0.1, 0.2],
+    "cifar10_50iter": [0.40, 0.1, 0.1, 0.2],
+    "cifar10_100iter": [0.40, 0.1, 0.1, 0.2],
+    "fashion": [0.83, 0.1, 0.1, 0.2],
+    "fashion_mnist": [0.83, 0.1, 0.1, 0.2],
+    "mnist": [0.97, 0.03, 0.03, 0.2],
+    "mnist_50iter": [0.97, 0.03, 0.03, 0.2],
+    "mnist_100iter": [0.97, 0.03, 0.03, 0.2],
+}
 
 # Color-blind friendly palette (Okabe–Ito)
 COLORBLIND_PALETTE: List[str] = [
@@ -61,6 +73,9 @@ DEFAULT_LINE_WIDTH: float = 5  # Update this constant to change plot line thickn
 NEHVI_METHOD_ORDER: List[str] = ["NEHVI_linear", "NEHVI_static", "NEHVI_no-constraint", "random"]
 EHVI_METHOD_ORDER: List[str] = ["EHVI_linear", "EHVI_static", "EHVI_no-constraint", "random"]
 
+HV_SIMILARITY_REL_TOL: float = 0.05  # Allow 5% relative difference when comparing HV milestones.
+HV_UPDATE_EPS: float = 1e-9  # Small tolerance to detect when HV curves truly change.
+
 T = TypeVar("T")
 
 
@@ -82,6 +97,36 @@ def _merge_seed_skips(target: Dict[str, set[int]], methods: List[str], seeds: se
 
 def _dataset_name_from_dir(dataset_dir: str) -> str:
     return os.path.basename(os.path.normpath(dataset_dir))
+
+
+def _constraints_for_dataset(dataset_name: str, override: Sequence[float] | None) -> List[float]:
+    """Return constraint thresholds for the dataset, honoring a manual override when provided."""
+    if override is not None:
+        if len(override) != 4:
+            raise ValueError(
+                "Custom constraints must provide four values: [acc_min, energy_max, timing_max, area_max]"
+            )
+        return [float(v) for v in override]
+
+    normalized = dataset_name.lower().replace("-", "_")
+    sanitized = re.sub(r"[^a-z0-9]+", "", normalized)
+
+    candidate_keys = {normalized, sanitized}
+    parts = normalized.split("_")
+    for idx in range(len(parts), 0, -1):
+        candidate_keys.add("_".join(parts[:idx]))
+
+    for candidate in candidate_keys:
+        if candidate in DATASET_CONSTRAINTS:
+            return list(DATASET_CONSTRAINTS[candidate])
+
+    for key, values in DATASET_CONSTRAINTS.items():
+        key_norm = key.lower()
+        key_sanitized = re.sub(r"[^a-z0-9]+", "", key_norm)
+        if normalized.startswith(key_norm) or sanitized.startswith(key_sanitized):
+            return list(values)
+
+    return list(DEFAULT_CONSTRAINTS)
 
 
 def _load_metrics_for_method_seed(dataset_dir: str, method: str, seed: int) -> Tuple[Dict[str, List[float]], str]:
@@ -110,6 +155,25 @@ def _reorder_metrics(metrics: Dict[str, List[float]], order: Sequence[int]) -> D
         else:
             reordered[key] = values
     return reordered
+
+
+def _blend_proxy_series(
+    orig_series: Sequence[float],
+    sim_series: Sequence[float],
+    substitution_start: int,
+) -> List[float]:
+    """Merge original and simulated HV series so substitution begins at substitution_start."""
+    if len(orig_series) != len(sim_series):
+        raise ValueError("Proxy substitution requires orig_series and sim_series to have equal length.")
+    start_idx = max(0, substitution_start)
+    if start_idx <= 0:
+        return [float(v) for v in sim_series]
+    if start_idx >= len(orig_series):
+        return [float(v) for v in orig_series]
+    blended = [float(v) for v in orig_series]
+    for idx in range(start_idx, len(blended)):
+        blended[idx] = float(sim_series[idx])
+    return blended
 
 
 def _compute_hv_series_from_metrics(
@@ -238,6 +302,7 @@ def _prepare_proxy_substitution(
     dataset_name: str,
     ref_point: Sequence[float],
     constraints: Sequence[float],
+    substitution_start: int,
 ) -> Dict[str, object]:
     from analysis.data_loader import load_all_results
     from analysis.features import build_features
@@ -282,6 +347,7 @@ def _prepare_proxy_substitution(
             if len(orig_series) != len(sim_series):
                 raise AssertionError(f"HV series length mismatch for {method} seed {seed}")
 
+            effective_series = _blend_proxy_series(orig_series, sim_series, substitution_start=substitution_start)
             hv_delta = abs(orig_series[-1] - sim_series[-1]) if orig_series else 0.0
             if hv_delta > PROXY_HV_TOL:
                 raise AssertionError(
@@ -292,12 +358,13 @@ def _prepare_proxy_substitution(
                 "seed": seed,
                 "orig_series": orig_series,
                 "sim_series": sim_series,
+                "effective_series": effective_series,
                 "hv50_orig": orig_series[-1] if orig_series else float("nan"),
                 "hv50_sim": sim_series[-1] if sim_series else float("nan"),
                 "hv50_delta": hv_delta,
             }
             method_records.setdefault(method, []).append(record)
-            seed_series_override.setdefault(seed, {})[method] = sim_series[CURVE_START_ITER:]
+            seed_series_override.setdefault(seed, {})[method] = effective_series[CURVE_START_ITER:]
 
     # Print sanity tables
     for method in sorted(method_records.keys()):
@@ -325,7 +392,7 @@ def _prepare_proxy_substitution(
     for method, records in method_records.items():
         sorted_records = sorted(records, key=lambda r: int(r["seed"]))
         method_series_override[method] = [
-            (int(rec["seed"]), list(rec["sim_series"])) for rec in sorted_records
+            (int(rec["seed"]), list(rec["effective_series"])) for rec in sorted_records
         ]
 
     return {
@@ -800,7 +867,8 @@ def plot_per_seed_curves(
         fig, ax = plt.subplots(figsize=(10, 5))
         for method in methods:
             y = np.array(m2s[method], dtype=float)
-            x = np.arange(len(y))
+            x_start = CURVE_START_ITER
+            x = np.arange(x_start, x_start + len(y))
             color, linestyle, marker, markevery = _style_for_name(method)
             display_name = _display_label(method)
             is_ours = "CS(Ours)" in display_name
@@ -824,7 +892,7 @@ def plot_per_seed_curves(
                 pe.Normal(),
             ])
 
-        ax.set_xlabel("Iteration (offset)")
+        ax.set_xlabel("Iteration")
         ax.set_ylabel("Feasible Hypervolume")
         ax.grid(axis="both", linestyle=":", alpha=0.4)
         ax.legend(loc="best")
@@ -981,6 +1049,134 @@ def mean_std_curve(series_list: List[List[float]]) -> Tuple[np.ndarray, np.ndarr
     return mean, std
 
 
+def _mean_curve_with_counts(series_list: List[List[float]]) -> Tuple[np.ndarray, np.ndarray]:
+    """Return element-wise mean HV alongside sample counts, without trimming early iterations."""
+    if not series_list:
+        raise ValueError("series_list must contain at least one HV trajectory")
+    max_len = max(len(seq) for seq in series_list)
+    if max_len == 0:
+        raise ValueError("HV trajectories are empty")
+
+    arr = np.full((len(series_list), max_len), np.nan, dtype=float)
+    for row, seq in enumerate(series_list):
+        if not seq:
+            continue
+        arr[row, : len(seq)] = seq
+
+    with np.errstate(all="ignore"):
+        mean = np.nanmean(arr, axis=0)
+    counts = np.sum(~np.isnan(arr), axis=0)
+    return mean, counts
+
+
+def _hv_reach_summary_lines(method_series: Dict[str, List[List[float]]]) -> List[str]:
+    """Construct human-readable statements comparing when our method matches others' final HV."""
+    mean_curves: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
+    for method, series_list in method_series.items():
+        if not series_list:
+            continue
+        try:
+            mean, counts = _mean_curve_with_counts(series_list)
+        except ValueError:
+            continue
+        if not np.any(counts > 0):
+            continue
+        mean_curves[method] = (mean, counts)
+
+    if not mean_curves:
+        return []
+
+    ours_methods = [
+        method for method in mean_curves.keys() if "CS(Ours)" in _display_label(method)
+    ]
+    if not ours_methods:
+        return []
+
+    summary_lines: List[str] = []
+    for ours_method in sorted(ours_methods):
+        ours_display = _display_label(ours_method)
+        ours_mean, ours_counts = mean_curves[ours_method]
+        ours_valid_idx = np.where(ours_counts > 0)[0]
+        if ours_valid_idx.size == 0:
+            continue
+
+        if ours_method in NEHVI_METHOD_ORDER:
+            comparison_order = [m for m in NEHVI_METHOD_ORDER if m != ours_method]
+        elif ours_method in EHVI_METHOD_ORDER:
+            comparison_order = [m for m in EHVI_METHOD_ORDER if m != ours_method]
+        else:
+            comparison_order = [m for m in sorted(mean_curves.keys()) if m != ours_method]
+
+        prefix = f"Our method ({ours_display})"
+        for other_method in comparison_order:
+            if other_method not in mean_curves:
+                continue
+            other_display = _display_label(other_method)
+            other_mean, other_counts = mean_curves[other_method]
+            other_valid_idx = np.where(other_counts > 0)[0]
+            if other_valid_idx.size == 0:
+                continue
+            final_idx: Optional[int] = None
+            last_val: Optional[float] = None
+            for idx in other_valid_idx:
+                val = other_mean[int(idx)]
+                if np.isnan(val):
+                    continue
+                val_f = float(val)
+                if final_idx is None:
+                    final_idx = int(idx)
+                    last_val = val_f
+                    continue
+                if last_val is None or abs(val_f - last_val) > HV_UPDATE_EPS:
+                    final_idx = int(idx)
+                    last_val = val_f
+            if final_idx is None or last_val is None:
+                continue
+            target_hv = last_val
+            if np.isnan(target_hv):
+                summary_lines.append(f"{prefix} did not reach the same HV as {other_display}.")
+                continue
+            reach_idx: Optional[int] = None
+            matched_exact = False
+            if target_hv > 0:
+                similarity_threshold = target_hv * (1.0 - HV_SIMILARITY_REL_TOL)
+            else:
+                similarity_threshold = target_hv
+            for idx in ours_valid_idx:
+                val = ours_mean[int(idx)]
+                if np.isnan(val):
+                    continue
+                if val >= target_hv:
+                    reach_idx = int(idx)
+                    matched_exact = True
+                    break
+                if reach_idx is None and val >= similarity_threshold:
+                    reach_idx = int(idx)
+                    break
+            if reach_idx is None:
+                summary_lines.append(
+                    f"{prefix} did not reach the same HV (within {HV_SIMILARITY_REL_TOL:.0%}) as {other_display}."
+                )
+                continue
+            i_ours = reach_idx + 1
+            i_other = final_idx + 1
+            if i_ours <= 0:
+                continue
+            ratio = i_other / i_ours
+            qualifier = "" if matched_exact else f" (within {HV_SIMILARITY_REL_TOL:.0%})"
+            if ratio >= 1.0:
+                summary_lines.append(
+                    f"{prefix} reaches the same HV{qualifier} as {other_display} {ratio:.2f}x earlier (iteration {i_ours} vs {i_other})"
+                )
+            else:
+                later_factor = (1.0 / ratio) if ratio > 0 else float("inf")
+                summary_lines.append(
+                    f"{prefix} reaches the same HV{qualifier} as {other_display} {later_factor:.2f}x later (iteration {i_ours} vs {i_other})"
+                )
+
+    return summary_lines
+
+
 def plot_mean_curves(
     method_curves: Dict[str, Tuple[np.ndarray, np.ndarray]],
     title: str,
@@ -1000,7 +1196,8 @@ def plot_mean_curves(
     fig, ax = plt.subplots(figsize=(10, 5))
     for method in methods:
         mean, std = method_curves[method]
-        x = np.arange(len(mean))
+        x_start = CURVE_START_ITER
+        x = np.arange(x_start, x_start + len(mean))
         color, linestyle, marker, markevery = _style_for_name(method)
         display_name = _display_label(method)
         is_ours = "CS(Ours)" in display_name
@@ -1049,8 +1246,9 @@ def main() -> None:
         "--constraints",
         type=float,
         nargs=4,
-        default=DEFAULT_CONSTRAINTS,
-        help="Constraint thresholds [acc_min, energy_max, timing_max, area_max]",
+        default=None,
+        help="Constraint thresholds [acc_min, energy_max, timing_max, area_max]. "
+        "If omitted, dataset-specific defaults are used.",
     )
     parser.add_argument("--title", type=str, default=None, help="Plot title. Defaults to '<dataset> [Final|Iter k] HV (constrained)'")
     parser.add_argument(
@@ -1080,6 +1278,12 @@ def main() -> None:
         "--proxy-substitute-linear",
         action="store_true",
         help="Apply proxy-guided early-phase substitution for linear scheduling methods.",
+    )
+    parser.add_argument(
+        "--proxy-substitute-start",
+        type=int,
+        default=10,
+        help="Iteration index (0-based) where proxy substitution begins to override the original series.",
     )
     parser.add_argument(
         "--iter",
@@ -1147,13 +1351,14 @@ def main() -> None:
     args = parser.parse_args()
 
     dataset_dir: str = args.dataset_dir
-    ref_point: List[float] = args.ref_point
-    constraints: List[float] = args.constraints
+    ref_point: List[float] = list(args.ref_point)
+    constraints_override: Optional[List[float]] = args.constraints
     out_name: str = args.out_name
     rate_out_name: str = args.rate_out_name
     curve_out_name: str = args.curve_out_name
     curve_shade_std: bool = args.curve_shade_std
     proxy_substitute: bool = bool(args.proxy_substitute_linear)
+    proxy_substitute_start: int = int(args.proxy_substitute_start)
     iter_index: int = args.iter_index
     start_iter: int = args.start_iter
     CURVE_START_ITER = start_iter
@@ -1172,23 +1377,36 @@ def main() -> None:
 
     if not os.path.isdir(dataset_dir):
         raise FileNotFoundError(f"Dataset directory not found: {dataset_dir}")
+    if proxy_substitute_start < 0:
+        raise ValueError("--proxy-substitute-start must be non-negative")
 
     dataset_name = _dataset_name_from_dir(dataset_dir)
+    constraints: List[float] = _constraints_for_dataset(dataset_name, constraints_override)
 
     proxy_context: Optional[Dict[str, object]] = None
     if proxy_substitute:
-        if not dataset_name.startswith("cifar10"):
-            raise ValueError("--proxy-substitute-linear currently supports only CIFAR-10 datasets")
-        if "50" not in dataset_name:
-            raise ValueError("--proxy-substitute-linear requires a 50-iteration dataset")
+        normalized_name = dataset_name.lower()
+        if "50iter" not in normalized_name and "50" not in normalized_name:
+            raise ValueError(
+                f"--proxy-substitute-linear requires a 50-iteration dataset (found '{dataset_name}')"
+            )
         for method in PROXY_TARGET_METHODS:
             per_method_skip_seeds.setdefault(method, set()).update(PROXY_EXCLUDED_SEEDS)
-        proxy_context = _prepare_proxy_substitution(
-            dataset_dir=dataset_dir,
-            dataset_name=dataset_name,
-            ref_point=ref_point,
-            constraints=constraints,
-        )
+        try:
+            proxy_context = _prepare_proxy_substitution(
+                dataset_dir=dataset_dir,
+                dataset_name=dataset_name,
+                ref_point=ref_point,
+                constraints=constraints,
+                substitution_start=proxy_substitute_start,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            raise ValueError(
+                f"--proxy-substitute-linear could not load the required proxy data for '{dataset_name}'. "
+                "Ensure the dataset contains seeds "
+                f"{sorted(PROXY_LINEAR_SEEDS)} for methods {sorted(PROXY_TARGET_METHODS)}. "
+                f"Original error: {exc}"
+            ) from exc
     # Build default title based on iteration selection
     if args.title:
         title = args.title
@@ -1393,6 +1611,12 @@ def main() -> None:
                 print(f"Saved: {proxy_out_path} (proxy substituted duplicate)")
             except Exception as copy_exc:
                 print(f"[warn] Failed to create proxy duplicate {proxy_out_path}: {copy_exc}")
+
+    hv_summary_lines = _hv_reach_summary_lines(method_series)
+    if hv_summary_lines:
+        print("\nHypervolume convergence summary:")
+        for line in hv_summary_lines:
+            print(line)
 
     # Always generate per-seed HV vs iteration plots (overlaying all methods per seed)
     seed_to_method_series, _all_methods = gather_seed_hv_series(

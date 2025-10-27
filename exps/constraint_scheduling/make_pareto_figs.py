@@ -1067,7 +1067,9 @@ def plot_pareto_3d(
 
     ax.set_xlabel(axis_labels[0])
     ax.set_ylabel(axis_labels[1])
-    ax.set_zlabel(axis_labels[2])
+    z_label = ax.set_zlabel(axis_labels[2], labelpad=6)
+    ax.zaxis.set_rotate_label(False)
+    z_label.set_rotation(90)
     ax.view_init(elev=elev, azim=azim)
 
     locators = [MaxNLocator(nbins=5, prune="both") for _ in range(3)]
