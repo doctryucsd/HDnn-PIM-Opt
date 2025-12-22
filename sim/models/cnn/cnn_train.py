@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from torch import Tensor, nn
 
-from .cnn import CNN
+from .cnn import CNN, CNN1D
 
 
 class CNNTrain(nn.Module):
     def __init__(
-        self, cnn: CNN, cnn_output_dim: int, num_classes: int, inner_dim: int
+        self, cnn: CNN | CNN1D, cnn_output_dim: int, num_classes: int, inner_dim: int
     ) -> None:
         super().__init__()
 

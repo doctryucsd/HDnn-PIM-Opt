@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from .cnn import CNN
+from .cnn import CNN, CNN1D
 from .encoders import Encoder
 from .hd_inferences import HDInference
 
@@ -14,7 +14,7 @@ from .hd_inferences import HDInference
 class HD(nn.Module):
     def __init__(
         self,
-        cnn: CNN | None,
+        cnn: CNN | CNN1D | None,
         encoder: Encoder,
         hd_inference: HDInference,
         binary: bool,

@@ -73,7 +73,8 @@ class Evaluator:
         # run evaluations; use number of configured evaluators
         n_workers = len(self.metric_managers)
         shared_tensor = torch.zeros((n_workers, 4, 2), dtype=torch.float32)
-        shared_tensor.share_memory_()
+        if n_workers > 1:
+            shared_tensor.share_memory_()
         # mp.spawn(self._evaluate, args=(params, shared_tensor, logger), nprocs=n_workers)  # type: ignore
 
         # debug

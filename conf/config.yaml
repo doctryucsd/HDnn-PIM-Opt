@@ -19,7 +19,7 @@ flow:
   # - data_collect
 
 data:
-  dataset: mnist
+  dataset: ucihar
   train_batch_size: 512
   test_batch_size: 16
   num_workers: 0
@@ -52,10 +52,10 @@ pretrain:
   epochs: 100
 
 optimization:
-  num_trials: 10
+  num_trials: 50
   num_epochs: 50
   acqf: qNoisyExpectedHypervolumeImprovement
-  metrics_file: cifar10-NEHVI-no_constraint
+  metrics_file: cifar10-random-50
   constrained: true
   threshold_schedule: static # Choices: static | linear | exponential
   # If set, the constraint schedule reaches final targets by this iteration index

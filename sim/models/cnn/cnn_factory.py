@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 
 from neurosim.Inference_pytorch.modules import QConv2d
 
-from .cnn import CNN
+from .cnn import CNN, CNN1D
 from .cnn_train import CNNTrain
 
 
@@ -26,25 +26,48 @@ class CNNFactory:
         padding_2,
         dilation_2: int,
         device: str | int,
+        dataset_name: str | None = None,
     ) -> None:
-        cnn1 = nn.Conv2d(
-            in_channels_1,
-            out_channels_1,
-            kernel_size_1,
-            stride_1,
-            padding_1,
-            dilation_1,
-        )
-        cnn2 = nn.Conv2d(
-            out_channels_1,
-            out_channels_2,
-            kernel_size_2,
-            stride_2,
-            padding_2,
-            dilation_2,
-        )
-        self.cnn = CNN(cnn1, cnn2).to(device)
         self.device = device
+        self.dataset_name = dataset_name
+        self.is_1d = dataset_name == "ucihar"
+
+        if self.is_1d:
+            cnn1 = nn.Conv1d(
+                in_channels_1,
+                out_channels_1,
+                kernel_size_1,
+                stride_1,
+                padding_1,
+                dilation_1,
+            )
+            cnn2 = nn.Conv1d(
+                out_channels_1,
+                out_channels_2,
+                kernel_size_2,
+                stride_2,
+                padding_2,
+                dilation_2,
+            )
+            self.cnn = CNN1D(cnn1, cnn2).to(device)
+        else:
+            cnn1 = nn.Conv2d(
+                in_channels_1,
+                out_channels_1,
+                kernel_size_1,
+                stride_1,
+                padding_1,
+                dilation_1,
+            )
+            cnn2 = nn.Conv2d(
+                out_channels_1,
+                out_channels_2,
+                kernel_size_2,
+                stride_2,
+                padding_2,
+                dilation_2,
+            )
+            self.cnn = CNN(cnn1, cnn2).to(device)
 
     def get_output_dim(self, image: Tensor) -> int:
         self.cnn.eval()
@@ -109,14 +132,16 @@ class CNNFactory:
                     f"Epoch [{epoch + 1}/{epochs}], Loss: {running_loss / len(train_loader):.4f}, Acc: {acc:.4f}"
                 )
 
-    def clone_param(self, cnn: CNN) -> None:
+    def clone_param(self, cnn: CNN | CNN1D) -> None:
         self.cnn.cnn1.weight.data = cnn.cnn1.weight.data.clone()
         self.cnn.cnn2.weight.data = cnn.cnn2.weight.data.clone()
 
-    def create(self) -> CNN:
+    def create(self) -> CNN | CNN1D:
         return self.cnn
 
-    def create_neurosim(self) -> CNN:
+    def create_neurosim(self) -> CNN | CNN1D:
+        if self.is_1d:
+            return self.cnn
         cnn1_neurosim = QConv2d(self.cnn.cnn1.in_channels, self.cnn.cnn1.out_channels, self.cnn.cnn1.kernel_size, self.cnn.cnn1.stride, self.cnn.cnn1.padding, self.cnn.cnn1.dilation, name="CNN1")  # type: ignore
         cnn1_neurosim.weight.data = self.cnn.cnn1.weight.data.clone()
 

@@ -7,7 +7,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from .cnn import CNN, CNNFactory
+from .cnn import CNN, CNN1D, CNNFactory
 from .encoders import EncoderFactory
 from .hd import HD
 from .hd_inferences import HDInferenceFactory
@@ -35,7 +35,7 @@ class HDFactory:
         self.hd_inference_factory = HDInferenceFactory(hd_dim, self.num_classes, device)
 
         # default cnn
-        self.cnn: CNN | None = None
+        self.cnn: CNN | CNN1D | None = None
 
     def set_cnn(
         self,
@@ -55,6 +55,7 @@ class HDFactory:
         lr: float,
         device: str | int,
         train_loader: DataLoader,
+        dataset_name: str | None = None,
     ):
         self.cnn_factory = CNNFactory(
             in_channels_1,
@@ -69,6 +70,7 @@ class HDFactory:
             padding_2,
             dilation_2,
             device,
+            dataset_name,
         )
         trial_image = next(iter(train_loader))[0][0].to(device)
         output_dim: int = self.cnn_factory.get_output_dim(trial_image[None, :])
@@ -116,6 +118,7 @@ class HDFactory:
                 x_train_extracted: Tensor = self.cnn(x_train_device)
             else:
                 x_train_extracted = x_train_device
+            x_train_extracted = self._flatten_for_encoder(x_train_extracted)
             self._init_buffer(x_train_extracted, y_train_device)
 
         if self.binary:
@@ -133,6 +136,7 @@ class HDFactory:
                     x_train_extracted: Tensor = self.cnn(x_train_device)
                 else:
                     x_train_extracted = x_train_device
+                x_train_extracted = self._flatten_for_encoder(x_train_extracted)
                 self._retrain(x_train_extracted, y_train_device, lr)
 
         if self.binary:
@@ -158,3 +162,9 @@ class HDFactory:
     def _retrain(self, x_train: Tensor, y_train: Tensor, lr: float) -> None:
         encoded_x_train: Tensor = self._encoder(x_train)
         self.hd_inference_factory.retrain(encoded_x_train, y_train, lr)
+
+    @staticmethod
+    def _flatten_for_encoder(x: Tensor) -> Tensor:
+        if x.dim() > 2:
+            return torch.flatten(x, start_dim=1)
+        return x

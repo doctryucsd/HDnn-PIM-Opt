@@ -20,6 +20,7 @@ class Accuracy:
         model_args = args.model_args
         training_args = args.training_args
         hardware_args = args.hardware_args
+        data_args = args.data_args
 
         # model args
         self.num_classes: int = model_args["num_classes"]
@@ -39,6 +40,7 @@ class Accuracy:
         self.noisy: bool = hardware_args["noise"]
         self.temperature: int = hardware_args["temperature"]
         self.cnn: bool = hardware_args["cnn"]
+        self.dataset_name: str = data_args["dataset"]
 
     def evaluate(
         self,
@@ -93,6 +95,7 @@ class Accuracy:
                 self.cnn_lr,
                 self.device,
                 train_loader,
+                self.dataset_name,
             )
         else:
             kron: bool = params["kron"]

@@ -96,19 +96,36 @@ def generate_arithmetic_sequence(min_val: float, max_val: float, num_elements: i
     return sequence
 
 
-def get_image_shape(image: Tensor) -> Tuple[int, int, int]:
+def get_image_shape(image: Tensor, has_batch: bool = False) -> Tuple[int, int, int]:
     shape = image.shape
-    if len(shape) == 4:
-        _, c, h, w = shape
-        return c, h, w
-    elif len(shape) == 3:
-        c, h, w = shape
-        return c, h, w
-    elif len(shape) == 2:
-        h, w = shape
-        return 1, h, w
+    if has_batch:
+        if len(shape) == 4:
+            _, c, h, w = shape
+            return c, h, w
+        elif len(shape) == 3:
+            _, c, length = shape
+            return c, length, 1
+        elif len(shape) == 2:
+            _, length = shape
+            return 1, length, 1
+        elif len(shape) == 1:
+            return 1, shape[0], 1
+        else:
+            raise ValueError(f"Invalid shape: {shape}")
     else:
-        raise ValueError(f"Invalid shape: {shape}")
+        if len(shape) == 4:
+            _, c, h, w = shape
+            return c, h, w
+        elif len(shape) == 3:
+            c, h, w = shape
+            return c, h, w
+        elif len(shape) == 2:
+            h, w = shape
+            return 1, h, w
+        elif len(shape) == 1:
+            return 1, shape[0], 1
+        else:
+            raise ValueError(f"Invalid shape: {shape}")
 
 
 def get_first_image_dataset(dataset: Dataset) -> Tensor:
@@ -132,12 +149,12 @@ def get_first_image_dataloader(dataloader: DataLoader) -> Tensor:
 
 def get_image_shape_dataset(dataset: Dataset) -> Tuple[int, int, int]:
     image = get_first_image_dataset(dataset)
-    return get_image_shape(image)
+    return get_image_shape(image, has_batch=False)
 
 
 def get_image_shape_dataloader(dataloader: DataLoader) -> Tuple[int, int, int]:
     image = get_first_image_dataloader(dataloader)
-    return get_image_shape(image)
+    return get_image_shape(image, has_batch=True)
 
 
 def get_num_classes_dataset(dataset: Dataset) -> int:
