@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCHEDULE_SCRIPT="${SCRIPT_DIR}/constraint_schedule.sh"
 RANDOM_SCRIPT="${SCRIPT_DIR}/random.sh"
 
-: "${DATASET:=mnist}"
+: "${DATASET:=ucihar}"
 
 if [ ! -x "${SCHEDULE_SCRIPT}" ]; then
   if [ -f "${SCHEDULE_SCRIPT}" ]; then
@@ -25,7 +25,8 @@ if [ ! -x "${RANDOM_SCRIPT}" ]; then
   fi
 fi
 
-acqfs=("qExpectedHypervolumeImprovement" "qNoisyExpectedHypervolumeImprovement")
+# acqfs=("qExpectedHypervolumeImprovement" "qNoisyExpectedHypervolumeImprovement")
+acqfs=("qNoisyExpectedHypervolumeImprovement")
 
 for acqf in "${acqfs[@]}"; do
   echo "Launching runs for ACQF=${acqf} with CONSTRAINT=false"
@@ -38,5 +39,5 @@ for acqf in "${acqfs[@]}"; do
   DATASET="${DATASET}" CONSTRAINT=true POLICY=linear ACQF="${acqf}" bash "${SCHEDULE_SCRIPT}"
 done
 
-echo "Launching random baseline runs"
-DATASET="${DATASET}" bash "${RANDOM_SCRIPT}"
+# echo "Launching random baseline runs"
+# DATASET="${DATASET}" bash "${RANDOM_SCRIPT}"

@@ -16,7 +16,7 @@ else
 fi
 
 # Configure runs here (not via CLI)
-: "${RUNS:=7}"
+: "${RUNS:=5}"
 : "${START:=142}"
 
 mkdir -p logs
@@ -38,4 +38,4 @@ done
 # Ensure all background runs finish before copying results
 wait
 
-cp outputs/*/*/*.json /cimloop-volume/
+# cp outputs/*/*/*.json /cimloop-volume/

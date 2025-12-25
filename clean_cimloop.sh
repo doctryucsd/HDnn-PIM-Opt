@@ -1,0 +1,1 @@
+rm -rf cimloop/workspace/outputs/*
