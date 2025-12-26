@@ -25,8 +25,7 @@ if [ ! -x "${RANDOM_SCRIPT}" ]; then
   fi
 fi
 
-# acqfs=("qExpectedHypervolumeImprovement" "qNoisyExpectedHypervolumeImprovement")
-acqfs=("qNoisyExpectedHypervolumeImprovement")
+acqfs=("qExpectedHypervolumeImprovement" "qNoisyExpectedHypervolumeImprovement")
 
 for acqf in "${acqfs[@]}"; do
   echo "Launching runs for ACQF=${acqf} with CONSTRAINT=false"
