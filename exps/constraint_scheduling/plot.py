@@ -41,6 +41,7 @@ DATASET_CONSTRAINTS: Dict[str, List[float]] = {
     "mnist": [0.97, 0.03, 0.03, 0.2],
     "mnist_50iter": [0.97, 0.03, 0.03, 0.2],
     "mnist_100iter": [0.97, 0.03, 0.03, 0.2],
+    "ucihar_50iter": [0.79, 0.5, 0.5, 0.2]
 }
 
 # Color-blind friendly palette (Okabe–Ito)
@@ -567,10 +568,16 @@ def gather_method_hvs(
     skip_seeds: set[int] | None = None,
     skip_methods: set[str] | None = None,
     per_method_skip_seeds: Dict[str, set[int]] | None = None,
-) -> Tuple[Dict[str, List[float]], Dict[str, Tuple[float, str]], Dict[str, List[float]]]:
+) -> Tuple[
+    Dict[str, List[float]],
+    Dict[str, Tuple[float, str]],
+    Dict[str, List[float]],
+    Dict[str, List[Dict[str, object]]],
+]:
     method_to_hvs: Dict[str, List[float]] = {}
     method_to_best: Dict[str, Tuple[float, str]] = {}
     method_to_rates: Dict[str, List[float]] = {}
+    method_to_records: Dict[str, List[Dict[str, object]]] = {}
 
     for entry in sorted(os.listdir(dataset_dir)):
         method_path = os.path.join(dataset_dir, entry)
@@ -608,6 +615,14 @@ def gather_method_hvs(
                     best_file = jf
                 rate_val = compute_eligibility_rate(jf, constraints)
                 method_to_rates.setdefault(entry, []).append(rate_val)
+                method_to_records.setdefault(entry, []).append(
+                    {
+                        "seed": _extract_seed_from_filename(jf),
+                        "file": os.path.basename(jf),
+                        "hv": float(hv_val),
+                        "eligibility": float(rate_val),
+                    }
+                )
             except Exception as e:
                 print(f"[warn] Skipping {jf}: {e}")
 
@@ -615,7 +630,7 @@ def gather_method_hvs(
             method_to_hvs[entry] = final_hvs
             method_to_best[entry] = (best_val, best_file)
 
-    return method_to_hvs, method_to_best, method_to_rates
+    return method_to_hvs, method_to_best, method_to_rates, method_to_records
 
 
 def plot_bar_with_error(
@@ -1427,7 +1442,7 @@ def main() -> None:
     if args.no_bars and not args.no_error_bars:
         print("[warn] --no_bars is deprecated; use --no_error_bars. Interpreting as --no_error_bars.")
 
-    method_hvs, method_best, method_rates = gather_method_hvs(
+    method_hvs, method_best, method_rates, method_records = gather_method_hvs(
         dataset_dir,
         ref_point,
         constraints,
@@ -1474,6 +1489,13 @@ def main() -> None:
             print(f"  best={best_val:.6f}  file={os.path.basename(best_file)}")
         else:
             print(f"  best=N/A  file=")
+
+    print("\nHV values used for plotting (per method average):")
+    for method in sorted(method_hvs.keys()):
+        display_method = "Random" if method.lower() == "random" else method
+        values = method_hvs.get(method, [])
+        mean = float(np.mean(values)) if values else float("nan")
+        print(f"{display_method}: mean={mean:.6f}")
 
     # Print eligibility rate stats
     print("\nEligibility Rate (feasible/total)")

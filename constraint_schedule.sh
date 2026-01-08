@@ -16,8 +16,8 @@ else
 fi
 
 # Configure runs here (not via CLI)
-: "${RUNS:=2}"
-: "${START:=147}"
+: "${RUNS:=5}"
+: "${START:=144}"
 
 mkdir -p logs
 

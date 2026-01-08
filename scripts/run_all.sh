@@ -11,7 +11,7 @@ FIGURES_DIR="${RESULT_DIR}/figures"
 
 mkdir -p "${METRICS_DIR}" "${TABLES_DIR}" "${FIGURES_DIR}" "${FIGURES_DIR}/extra"
 
-DATASETS=(mnist fashion cifar10)
+DATASETS=(ucihar)
 FLAGSHIP_METHOD="NEHVI_no-constraint"
 EARLY_COUNT=30
 FILTER_KS=(10 20 30)

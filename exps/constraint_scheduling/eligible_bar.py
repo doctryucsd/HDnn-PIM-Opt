@@ -15,22 +15,24 @@ OUTPUT_FILENAMES = {
 
 EXPERIMENT_VALUES: Dict[str, Dict[str, List[float]]] = {
     "ehvi": {
-        "MNIST": [0.012, 0.048, 0.144, 0.112],
-        "Fashion-MNIST": [0.024, 0.064, 0.100, 0.072],
-        "CIFAR-10": [0.012, 0.156, 0.108, 0.136],
+        "MNIST": [.012, .048, .144, .112],
+        "Fashion-MNIST": [.024, .064, .100, .072],
+        "CIFAR-10": [.012, .156, .108, .136],
+        "UCIHAR": [.040, .052, .072, .052],
     },
     "nehvi": {
-        "MNIST": [0.012, 0.020, 0.108, 0.088],
-        "Fashion-MNIST": [0.024, 0.084, 0.072, 0.104],
-        "CIFAR-10": [0.012, 0.072, 0.096, 0.100],
+        "MNIST": [.012, .020, .108, .088],
+        "Fashion-MNIST": [.024, .084, .072, .104],
+        "CIFAR-10": [.012, .072, .096, .100],
+        "UCIHAR": [.040, .040, .032, .056],
     },
 }
 
 # Dataset and plotting configuration.
-DATASETS: List[str] = ["MNIST", "Fashion-MNIST", "CIFAR-10"]
-BASE_METHOD_LABELS: List[str] = ["Random", "NC", "SC", "CS(Ours)"]
+DATASETS: List[str] = ["MNIST", "Fashion-MNIST", "CIFAR-10", "UCIHAR"]
+BASE_METHOD_LABELS: List[str] = ["Random", "NC [4]", "SC", "CS(Ours)"]
 EXPERIMENT_METHOD_LABELS: Dict[str, List[str]] = {
-    "ehvi": BASE_METHOD_LABELS,
+    "ehvi": ["Random", "NC", "SC", "CS(Ours)"],
     "nehvi": ["Random", "NC [4]", "SC", "CS(Ours)"],
 }
 BAR_COLORS: List[str] = ["#8dd3c7", "#80b1d3", "#fb8072", "#b15928"]
@@ -41,6 +43,15 @@ ANNOTATION_FONT_SIZE: int = 9  # Increase or decrease to change bar-label text s
 AXIS_LABEL_FONT_SIZE: int = 12  # Controls the y-axis label size.
 TICK_LABEL_FONT_SIZE: int = 10  # Controls both x and y tick label sizes.
 LEGEND_FONT_SIZE: int = 10  # Controls the legend text size.
+
+def format_rate(value: float) -> str:
+    """Format decimals as .xxx instead of 0.xxx."""
+    formatted = f"{value:.3f}"
+    if formatted.startswith("-0."):
+        return f"-{formatted[2:]}"
+    if formatted.startswith("0."):
+        return formatted[1:]
+    return formatted
 
 def plot_feasible_rates(
     experiment: str,
@@ -63,7 +74,7 @@ def plot_feasible_rates(
             ax.text(
                 bar.get_x() + bar.get_width() / 2.0,
                 height + 0.002,
-                f"{height:.3f}",
+                format_rate(height),
                 ha="center",
                 va="bottom",
                 fontsize=ANNOTATION_FONT_SIZE,

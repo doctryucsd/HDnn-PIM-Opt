@@ -52,7 +52,7 @@ pretrain:
   epochs: 100
 
 optimization:
-  num_trials: 50
+  num_trials: 10
   num_epochs: 50
   acqf: qNoisyExpectedHypervolumeImprovement
   metrics_file: cifar10-random-50
@@ -63,9 +63,9 @@ optimization:
   # Leave as null to finish at the last iteration.
   threshold_schedule_final_iter: 39
   constraints:
-    accuracy: 0.8
-    power: 0.1
-    performance: 0.1
+    accuracy: 0.79
+    power: 0.6
+    performance: 0.6
     area: 0.2
   # preference:
   #   accuracy: 0.4
