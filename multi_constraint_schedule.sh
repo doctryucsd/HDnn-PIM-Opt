@@ -38,5 +38,5 @@ for acqf in "${acqfs[@]}"; do
   DATASET="${DATASET}" CONSTRAINT=true POLICY=linear ACQF="${acqf}" bash "${SCHEDULE_SCRIPT}"
 done
 
-# echo "Launching random baseline runs"
-# DATASET="${DATASET}" bash "${RANDOM_SCRIPT}"
+echo "Launching random baseline runs"
+DATASET="${DATASET}" bash "${RANDOM_SCRIPT}"

@@ -3,7 +3,7 @@ FILE_NAME_PREFIX=${DATASET}_random
 
 # Configure runs here (not via CLI)
 : "${RUNS:=1}"
-: "${START:=148}"
+: "${START:=147}"
 
 mkdir -p logs
 

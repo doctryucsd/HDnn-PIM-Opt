@@ -2,10 +2,10 @@
   type: choice
   values:
     # - 512
-    - 1024
+    # - 1024
     - 2048
     - 4096
-    - 8192
+    # - 8192
   value_type: int
 # - name: hd_dim
 #   type: fixed
@@ -105,11 +105,15 @@
     - 5
     - 7
   value_type: int
+# - name: stride_1
+#   type: range
+#   bounds:
+#     # - 1
+#     - 2
+#   value_type: int
 - name: stride_1
-  type: range
-  bounds:
-    - 1
-    - 2
+  type: fixed
+  value: 2
   value_type: int
 - name: padding_1
   type: fixed
@@ -133,11 +137,15 @@
     - 5
     - 7
   value_type: int
+# - name: stride_2
+#   type: range
+#   bounds:
+#     - 1
+#     # - 2
+#   value_type: int
 - name: stride_2
-  type: range
-  bounds:
-    - 1
-    - 2
+  type: fixed
+  value: 1
   value_type: int
 - name: padding_2
   type: fixed
@@ -150,43 +158,43 @@
 - name: cnn_x_dim_1
   type: choice
   values:
-    - 8
+    # - 8
     - 16
   value_type: int
 - name: cnn_y_dim_1
   type: choice
   values:
-    - 8
+    # - 8
     - 16
   value_type: int
 - name: cnn_x_dim_2
   type: choice
   values:
     - 8
-    - 16
+    # - 16
   value_type: int
 - name: cnn_y_dim_2
   type: choice
   values:
     - 8
-    - 16
+    # - 16
   value_type: int
 - name: encoder_x_dim
   type: choice
   values:
     - 8
-    - 16
+    # - 16
   value_type: int
 - name: encoder_y_dim
   type: choice
   values:
-    - 8
+    # - 8
     - 16
   value_type: int
 - name: inner_dim
   type: choice
   values:
     - 1024
-    - 2048
-    - 4096
+    # - 2048
+    # - 4096
   value_type: int

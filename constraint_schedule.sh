@@ -1,7 +1,7 @@
-: "${CONSTRAINT:=false}"
-: "${POLICY:=static}" # static, linear
-: "${ACQF:=qExpectedHypervolumeImprovement}" # qExpectedHypervolumeImprovement, qNoisyExpectedHypervolumeImprovement
-: "${DATASET:=cifar10}"
+: "${CONSTRAINT:=true}"
+: "${POLICY:=linear}" # static, linear
+: "${ACQF:=qNoisyExpectedHypervolumeImprovement}" # qExpectedHypervolumeImprovement, qNoisyExpectedHypervolumeImprovement
+: "${DATASET:=ucihar}"
 
 if [ "$ACQF" = "qExpectedHypervolumeImprovement" ]; then
   METHOD=EHVI
@@ -16,8 +16,8 @@ else
 fi
 
 # Configure runs here (not via CLI)
-: "${RUNS:=5}"
-: "${START:=144}"
+: "${RUNS:=1}"
+: "${START:=146}"
 
 mkdir -p logs
 

@@ -1,63 +1,69 @@
+from __future__ import annotations
+
 import itertools
 import logging
-import random
 from logging import Logger
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 import hydra
 import numpy as np
-import torch
 from ax.modelbridge import Models
 from ax.modelbridge.generation_strategy import GenerationStep, GenerationStrategy
 from ax.modelbridge.modelbridge_utils import observed_hypervolume
 from ax.service.ax_client import AxClient, ObjectiveProperties
 from omegaconf import DictConfig
+from pymoo.indicators.hv import HV
 from tqdm import tqdm
 
 from sim.evaluator import Evaluator
-from sim.utils import dump_metrics, generate_arithmetic_sequence
+from sim.utils import dump_metrics
 
+from .acqfManagerFactory import acqf_factory
 from .utils import metric_type2bool, process_params_prop, set_seed
 
 
-def generate_param(prop: Dict[str, Any], interval: int):
-    name: str = prop["name"]
-    bounds: List[float] = list(prop["bounds"])
-    assert len(bounds) == 2
-    value_type: str = prop["value_type"]
-
-    trials: List[float] = generate_arithmetic_sequence(bounds[0], bounds[1], interval)
-    if value_type == "int":
-        trials = [int(trial) for trial in trials]
-    return (name, trials)
-
-
-def generate_params(props: List[Dict[str, Any]], interval: int):
-    names: List[str] = []
-    trials_list: List[List[float]] = []
-    for prop in props:
-        prop_type = prop["type"]
-        if prop_type == "range":
-            name, trial = generate_param(prop, interval)
-        elif prop_type == "choice":
-            name = prop["name"]
-            trial = prop["values"]
-        names.append(name)
-        trials_list.append(trial)
-    return names, trials_list
+def get_constraint_values(
+    constraints: Dict[str, float]
+) -> Tuple[float, float, float, float]:
+    accuracy_lower_bound = constraints["accuracy"]
+    power_upper_bound = constraints["power"]
+    performance_upper_bound = constraints["performance"]
+    area_upper_bound = constraints["area"]
+    return (
+        accuracy_lower_bound,
+        power_upper_bound,
+        performance_upper_bound,
+        area_upper_bound,
+    )
 
 
 def get_model(
+    num_trials: int,
+    acqf: str,
     params_prop: List[Dict[str, Any]],
     metrics_type: List[Tuple[str, str, float]],
+    constraints: Dict[str, float],
+    constrained: bool,
     logger: Logger,
 ) -> AxClient:
-    cli = AxClient(GenerationStrategy([GenerationStep(Models.SOBOL, num_trials=-1)]))
+    botorch_acqf_class = acqf_factory(acqf)
+    model_kwargs = {"torch_device": "cpu", "botorch_acqf_class": botorch_acqf_class}
+    cli = AxClient(
+        GenerationStrategy(
+            [
+                GenerationStep(Models.SOBOL, num_trials=num_trials),
+                GenerationStep(
+                    Models.BOTORCH_MODULAR,
+                    num_trials=-1,
+                    model_kwargs=model_kwargs,
+                ),
+            ]
+        )
+    )
 
     logger.info(f"parameter properties: {params_prop}")
     logger.info(f"metric properties: {metrics_type}")
 
-    # for each element in objctives_prop, add it to the objectives
     objectives = {
         metric_name: ObjectiveProperties(
             minimize=metric_type2bool(metric_type), threshold=ref_point
@@ -65,7 +71,6 @@ def get_model(
         for (metric_name, metric_type, ref_point) in metrics_type
     }
 
-    # FIXME: objectives
     cli.create_experiment(
         parameters=params_prop,
         objectives=objectives,
@@ -74,16 +79,81 @@ def get_model(
     return cli
 
 
+def is_eligible(
+    accuracy: float,
+    energy: float,
+    timing: float,
+    area: float,
+    constraints: Dict[str, float],
+):
+    accuracy_lower_bound, power_upper_bound, timing_upper_bound, area_upper_bound = (
+        get_constraint_values(constraints)
+    )
+
+    return (
+        True
+        and accuracy >= accuracy_lower_bound
+        and energy <= power_upper_bound
+        and timing <= timing_upper_bound
+        and area <= area_upper_bound
+    )
+
+
+def _expand_param_values(param_prop: Dict[str, Any]) -> Tuple[str, List[Any]]:
+    name = param_prop["name"]
+    param_type = param_prop["type"]
+    value_type = param_prop.get("value_type")
+
+    if param_type == "range":
+        bounds: List[float] = list(param_prop["bounds"])
+        if len(bounds) != 2:
+            raise ValueError(f"Invalid bounds for {name}: {bounds}")
+        start = int(bounds[0])
+        end = int(bounds[1])
+        values: List[Any] = list(range(start, end + 1))
+        if value_type == "bool":
+            values = [bool(v) for v in values]
+    elif param_type == "choice":
+        values = list(param_prop["values"])
+    elif param_type == "fixed":
+        values = [param_prop["value"]]
+    else:
+        raise ValueError(f"Unknown parameter type: {param_type}")
+
+    return name, values
+
+
+def _iter_param_grid(params_prop: List[Dict[str, Any]]) -> Iterable[Dict[str, Any]]:
+    names: List[str] = []
+    values_list: List[List[Any]] = []
+    for prop in params_prop:
+        name, values = _expand_param_values(prop)
+        names.append(name)
+        values_list.append(values)
+
+    if not names:
+        yield {}
+        return
+
+    for combo in itertools.product(*values_list):
+        yield dict(zip(names, combo))
+
+
+def _count_param_grid(params_prop: List[Dict[str, Any]]) -> int:
+    count = 1
+    for prop in params_prop:
+        _, values = _expand_param_values(prop)
+        count *= len(values)
+    return count
+
+
 def sweep(args: DictConfig) -> None:
     logger = logging.getLogger("sweep")
 
-    # set seed
     set_seed(args["seed"])
 
-    # process params_prop
     params_prop = process_params_prop(args["params_prop"])
 
-    # get evaluator
     evaluator = Evaluator(
         args["data"],
         args["training"],
@@ -92,68 +162,103 @@ def sweep(args: DictConfig) -> None:
         logger,
     )
     metrics_prop = evaluator.get_optimizations_prop()
-    # model for hypervoolume
-    cli = get_model(params_prop, metrics_prop, logger)
+    constraints: Dict[str, float] = args["optimization"].get("constraints", {})
+    constrained: bool = args["optimization"]["constrained"]
+    num_trials = args["optimization"]["num_trials"]
+    acqf_name: str = args["optimization"]["acqf"]
+    cli = get_model(
+        num_trials,
+        acqf_name,
+        params_prop,
+        metrics_prop,
+        constraints,
+        constrained,
+        logger,
+    )
 
-    interval: int = args["sweep"]["interval"]
-    names, trials_list = generate_params(params_prop, interval)
-
-    # all kinds of parameters and metrics of interest during BO
     accuracy_list: List[float] = []
     energy_list: List[float] = []
     timing_list: List[float] = []
     area_list: List[float] = []
     hv_list: List[float] = []
     param_list: List[Dict[str, Any]] = []
+    hv_constrained_list: List[float] = []
+    eligible_count_list: List[int] = []
 
-    # loop
-    params: List[float] = []
-    bests: List[float] = []
-    dbg: int = 0
-    accept_rate = args["sweep"]["accept_rate"]
-    for _, trial in enumerate(tqdm(itertools.product(*trials_list))):
-        param = dict(zip(names, trial))
+    total = _count_param_grid(params_prop)
+    for param in tqdm(_iter_param_grid(params_prop), total=total):
+        _, idx = cli.attach_trial(param)  # type: ignore
 
-        if random.random() > accept_rate:
-            continue
-
-        # HACK
-        # if dbg > 10:
-        #     break
-
-        _, idx = cli.get_next_trial()
         evals = evaluator.evaluate([param], logger)
 
-        cli.complete_trial(idx, raw_data=eval)  # type: ignore
-
         for eval in evals:
-            accuracy_list.append(eval["accuracy"][0])
-            energy_list.append(eval["power"][0])
-            timing_list.append(eval["performance"][0])
-            area_list.append(eval["area"][0])
+            cli.complete_trial(idx, raw_data=eval)  # type: ignore
+            accuracy, energy, timing, area = (
+                eval["accuracy"][0],
+                eval["power"][0],
+                eval["performance"][0],
+                eval["area"][0],
+            )
+            accuracy_list.append(accuracy)
+            energy_list.append(energy)
+            timing_list.append(timing)
+            area_list.append(area)
             param_list.append(param)
 
         model = Models.BOTORCH_MODULAR(
             experiment=cli.experiment,
             data=cli.experiment.fetch_data(),
         )
-
         hv = observed_hypervolume(model)
         hv_list.append(hv)
 
-        logger.info(f"{idx}: {param}, {eval}")
-        dbg += 1
+        if constrained and len(accuracy_list) > 0:
+            current_constraints = constraints
 
-        params.append(param["hd_dim"])  # type: ignore
-        bests.append(eval["accuracy"][0])
+            eligible_mask = [
+                is_eligible(a, e, t, ar, current_constraints)
+                for (a, e, t, ar) in zip(
+                    accuracy_list, energy_list, timing_list, area_list
+                )
+            ]
+            eligible_count = int(sum(1 for ok in eligible_mask if ok))
+            eligible_count_list.append(eligible_count)
+            if eligible_count > 0:
+                ref_point = np.array([0.0, 1.0, 1.0, 1.0])
+                hv_constrained_calculation = HV(ref_point=ref_point)
+                points = np.array(
+                    [
+                        [-a, e, t, ar]
+                        for a, e, t, ar, ok in zip(
+                            accuracy_list,
+                            energy_list,
+                            timing_list,
+                            area_list,
+                            eligible_mask,
+                        )
+                        if ok
+                    ]
+                )
+                hv_constrained = hv_constrained_calculation(points)
+                assert (
+                    hv_constrained is not None and hv_constrained >= 0
+                ), f"Invalid hypervolume: {hv_constrained}"
+            else:
+                hv_constrained = 0.0
+        else:
+            hv_constrained = 0.0
+            eligible_count_list.append(0)
+        hv_constrained_list.append(hv_constrained)
 
     data = {
         "accuracy": accuracy_list,
-        "power": energy_list,
-        "performance": timing_list,
+        "energy": energy_list,
+        "timing": timing_list,
         "area": area_list,
         "hv": hv_list,
+        "hv_constrained": hv_constrained_list,
+        "eligible_count": eligible_count_list,
         "param": param_list,
     }
-    dump_metrics(data, args["sweep"]["metrics_file"])
-    logger.info("metrics dumped")
+    dump_metrics(data, args["optimization"]["metrics_file"])
+    logger.info("\nmetrics dumped")

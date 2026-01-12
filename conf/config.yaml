@@ -64,8 +64,8 @@ optimization:
   threshold_schedule_final_iter: 39
   constraints:
     accuracy: 0.79
-    power: 0.6
-    performance: 0.6
+    power: 0.5
+    performance: 0.5
     area: 0.2
   # preference:
   #   accuracy: 0.4
@@ -73,10 +73,10 @@ optimization:
   #   performance: 0.2
   #   area: 0.2
 
-sweep:
-  interval: 5
-  metrics_file: sweep
-  accept_rate: 0.02
+# sweep:
+#   interval: 5
+#   metrics_file: sweep
+#   accept_rate: 0.02
 
 evaluator:
   param:
